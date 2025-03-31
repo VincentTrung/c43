@@ -122,6 +122,121 @@ const api = {
 
     return response.json();
   },
+
+  depositCash: async (portfolioId, amount) => {
+    const response = await fetch(
+      `${API_BASE_URL}/portfolio/${portfolioId}/cash/deposit`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ amount }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to deposit cash");
+    }
+
+    return response.json();
+  },
+
+  withdrawCash: async (portfolioId, amount) => {
+    const response = await fetch(
+      `${API_BASE_URL}/portfolio/${portfolioId}/cash/withdraw`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ amount }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to withdraw cash");
+    }
+
+    return response.json();
+  },
+
+  buyStock: async (portfolioId, symbol, quantity) => {
+    const response = await fetch(
+      `${API_BASE_URL}/portfolio/${portfolioId}/stocks/buy`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ symbol, quantity }),
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.details || errorData.error || "Failed to buy stock"
+      );
+    }
+
+    return response.json();
+  },
+
+  sellStock: async (portfolioId, symbol, quantity) => {
+    const response = await fetch(
+      `${API_BASE_URL}/portfolio/${portfolioId}/stocks/sell`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ symbol, quantity }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to sell stock");
+    }
+
+    return response.json();
+  },
+
+  getPortfolioTransactions: async (portfolioId) => {
+    const response = await fetch(
+      `${API_BASE_URL}/portfolio/${portfolioId}/transactions`,
+      {
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch transactions");
+    }
+
+    return response.json();
+  },
+
+  getStockInfo: async (symbol) => {
+    const response = await fetch(`${API_BASE_URL}/portfolio/stock/${symbol}`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch stock information");
+    }
+
+    return response.json();
+  },
 };
 
 export default api;

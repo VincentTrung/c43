@@ -8,6 +8,7 @@ import {
 import Login from "./components/Login";
 import Register from "./components/Register";
 import PortfolioDashboard from "./components/PortfolioDashboard";
+import PortfolioPage from "./components/PortfolioPage";
 import PrivateRoute from "./components/PrivateRoute";
 
 function App() {
@@ -22,6 +23,14 @@ function App() {
             element={
               <PrivateRoute>
                 <PortfolioDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/portfolio/:portfolioId"
+            element={
+              <PrivateRoute>
+                <PortfolioPage />
               </PrivateRoute>
             }
           />

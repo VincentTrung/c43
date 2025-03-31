@@ -74,11 +74,16 @@ router.get("/:portfolioId", async (req, res) => {
 
     // Get portfolio holdings with stock details and current prices
     const holdingsResult = await pool.query(
-      `SELECT sh.*, s.symbol, s.company_name, COALESCE(sd.close_price, 0) as current_price 
-       FROM stockholding sh 
-       JOIN stock s ON sh.symbol = s.symbol 
-       LEFT JOIN stockdata sd ON sh.symbol = sd.symbol 
-       WHERE sh.portfolioid = $1`,
+      `WITH latest_prices AS (
+        SELECT DISTINCT ON (symbol) symbol, close_price
+        FROM stockdata
+        ORDER BY symbol, date DESC
+      )
+      SELECT sh.*, s.symbol, s.company_name, COALESCE(lp.close_price, 0) as current_price 
+      FROM stockholding sh 
+      JOIN stock s ON sh.symbol = s.symbol 
+      LEFT JOIN latest_prices lp ON sh.symbol = lp.symbol 
+      WHERE sh.portfolioid = $1`,
       [portfolioId]
     );
 
@@ -147,6 +152,386 @@ router.delete("/:portfolioId", async (req, res) => {
     res
       .status(500)
       .json({ message: "Error deleting portfolio", error: error.message });
+  }
+});
+
+// Deposit cash into portfolio
+router.post("/:portfolioId/cash/deposit", async (req, res) => {
+  try {
+    const { portfolioId } = req.params;
+    const { amount } = req.body;
+    const userId = req.session.user.userid;
+
+    // Verify portfolio belongs to user
+    const portfolioResult = await pool.query(
+      "SELECT * FROM portfolio WHERE portfolioid = $1 AND userid = $2",
+      [portfolioId, userId]
+    );
+
+    if (portfolioResult.rows.length === 0) {
+      return res.status(404).json({ message: "Portfolio not found" });
+    }
+
+    // Start transaction
+    await pool.query("BEGIN");
+
+    // Update portfolio cash balance
+    const updateResult = await pool.query(
+      "UPDATE portfolio SET cash_balance = cash_balance + $1 WHERE portfolioid = $2 RETURNING *",
+      [amount, portfolioId]
+    );
+
+    // Record transaction
+    await pool.query(
+      "INSERT INTO portfolio_transaction (portfolio_id, type, amount) VALUES ($1, 'DEPOSIT', $2)",
+      [portfolioId, amount]
+    );
+
+    await pool.query("COMMIT");
+
+    res.json(updateResult.rows[0]);
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    console.error("Error depositing cash:", error);
+    res
+      .status(500)
+      .json({ message: "Error depositing cash", error: error.message });
+  }
+});
+
+// Withdraw cash from portfolio
+router.post("/:portfolioId/cash/withdraw", async (req, res) => {
+  try {
+    const { portfolioId } = req.params;
+    const { amount } = req.body;
+    const userId = req.session.user.userid;
+
+    // Verify portfolio belongs to user
+    const portfolioResult = await pool.query(
+      "SELECT * FROM portfolio WHERE portfolioid = $1 AND userid = $2",
+      [portfolioId, userId]
+    );
+
+    if (portfolioResult.rows.length === 0) {
+      return res.status(404).json({ message: "Portfolio not found" });
+    }
+
+    // Check if sufficient funds
+    if (portfolioResult.rows[0].cash_balance < amount) {
+      return res.status(400).json({ message: "Insufficient funds" });
+    }
+
+    // Start transaction
+    await pool.query("BEGIN");
+
+    // Update portfolio cash balance
+    const updateResult = await pool.query(
+      "UPDATE portfolio SET cash_balance = cash_balance - $1 WHERE portfolioid = $2 RETURNING *",
+      [amount, portfolioId]
+    );
+
+    // Record transaction
+    await pool.query(
+      "INSERT INTO portfolio_transaction (portfolio_id, type, amount) VALUES ($1, 'WITHDRAWAL', $2)",
+      [portfolioId, amount]
+    );
+
+    await pool.query("COMMIT");
+
+    res.json(updateResult.rows[0]);
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    console.error("Error withdrawing cash:", error);
+    res
+      .status(500)
+      .json({ message: "Error withdrawing cash", error: error.message });
+  }
+});
+
+// Buy stock
+router.post("/:portfolioId/stocks/buy", async (req, res) => {
+  const { portfolioId } = req.params;
+  const { symbol, quantity } = req.body;
+  const userId = req.session.user.userid;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Verify portfolio ownership
+    const portfolioResult = await client.query(
+      "SELECT * FROM portfolio WHERE portfolioid = $1 AND userid = $2",
+      [portfolioId, userId]
+    );
+
+    if (portfolioResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Portfolio not found" });
+    }
+
+    const portfolio = portfolioResult.rows[0];
+    // Convert cash_balance to number
+    const cashBalance = parseFloat(portfolio.cash_balance) || 0;
+
+    // Check if stock exists
+    const stockExistsResult = await client.query(
+      "SELECT symbol FROM stock WHERE symbol = $1",
+      [symbol]
+    );
+
+    if (stockExistsResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Stock not found" });
+    }
+
+    // Get current stock price
+    const stockResult = await client.query(
+      "SELECT close_price FROM stockdata WHERE symbol = $1 ORDER BY date DESC LIMIT 1",
+      [symbol]
+    );
+
+    if (stockResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Stock not found" });
+    }
+
+    const currentPrice = parseFloat(stockResult.rows[0].close_price) || 0;
+    const totalCost = currentPrice * quantity;
+
+    // Check if user has enough cash
+    if (cashBalance < totalCost) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "Insufficient funds",
+        details: `You need $${totalCost.toFixed(
+          2
+        )} but only have $${cashBalance.toFixed(2)}`,
+      });
+    }
+
+    // Update cash balance
+    await client.query(
+      "UPDATE portfolio SET cash_balance = cash_balance - $1 WHERE portfolioid = $2",
+      [totalCost, portfolioId]
+    );
+
+    // Record stock transaction
+    await client.query(
+      "INSERT INTO stock_transaction (portfolio_id, symbol, type, quantity, price) VALUES ($1, $2, 'BUY', $3, $4)",
+      [portfolioId, symbol, quantity, currentPrice]
+    );
+
+    // Update or insert stock holding
+    await client.query(
+      `INSERT INTO stockholding (portfolioid, symbol, quantity)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (portfolioid, symbol)
+       DO UPDATE SET quantity = stockholding.quantity + $3`,
+      [portfolioId, symbol, quantity]
+    );
+
+    await client.query("COMMIT");
+    res.json({ message: "Stock purchased successfully" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error buying stock:", err);
+    res.status(500).json({ error: "Error buying stock" });
+  } finally {
+    client.release();
+  }
+});
+
+// Sell stock
+router.post("/:portfolioId/stocks/sell", async (req, res) => {
+  const { portfolioId } = req.params;
+  const { symbol, quantity } = req.body;
+  const userId = req.session.user.userid;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Verify portfolio ownership
+    const portfolioResult = await client.query(
+      "SELECT * FROM portfolio WHERE portfolioid = $1 AND userid = $2",
+      [portfolioId, userId]
+    );
+
+    if (portfolioResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Portfolio not found" });
+    }
+
+    // Check if user has enough shares
+    const holdingResult = await client.query(
+      "SELECT quantity FROM stockholding WHERE portfolioid = $1 AND symbol = $2",
+      [portfolioId, symbol]
+    );
+
+    if (holdingResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "No holdings found",
+        details: `You don't own any shares of ${symbol}`,
+      });
+    }
+
+    const currentHolding = holdingResult.rows[0];
+    if (currentHolding.quantity < quantity) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "Insufficient shares",
+        details: `You only have ${currentHolding.quantity} shares of ${symbol}`,
+      });
+    }
+
+    // Get current stock price
+    const stockResult = await client.query(
+      "SELECT close_price FROM stockdata WHERE symbol = $1 ORDER BY date DESC LIMIT 1",
+      [symbol]
+    );
+
+    if (stockResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Stock not found" });
+    }
+
+    const currentPrice = stockResult.rows[0].close_price;
+    const totalValue = currentPrice * quantity;
+
+    // Update cash balance
+    await client.query(
+      "UPDATE portfolio SET cash_balance = cash_balance + $1 WHERE portfolioid = $2",
+      [totalValue, portfolioId]
+    );
+
+    // Record stock transaction
+    await client.query(
+      "INSERT INTO stock_transaction (portfolio_id, symbol, type, quantity, price) VALUES ($1, $2, 'SELL', $3, $4)",
+      [portfolioId, symbol, quantity, currentPrice]
+    );
+
+    // Update stock holding
+    await client.query(
+      `UPDATE stockholding 
+       SET quantity = quantity - $1 
+       WHERE portfolioid = $2 AND symbol = $3 
+       RETURNING quantity`,
+      [quantity, portfolioId, symbol]
+    );
+
+    // Check if quantity is zero and delete if it is
+    const updatedHolding = await client.query(
+      "DELETE FROM stockholding WHERE portfolioid = $1 AND symbol = $2 AND quantity = 0 RETURNING *",
+      [portfolioId, symbol]
+    );
+
+    await client.query("COMMIT");
+    res.json({ message: "Stock sold successfully" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error selling stock:", err);
+    res.status(500).json({ error: "Error selling stock" });
+  } finally {
+    client.release();
+  }
+});
+
+// Get stock transactions for a portfolio
+router.get("/:portfolioId/transactions", async (req, res) => {
+  try {
+    const { portfolioId } = req.params;
+    const userId = req.session.user.userid;
+
+    // Verify portfolio belongs to user
+    const portfolioResult = await pool.query(
+      "SELECT * FROM portfolio WHERE portfolioid = $1 AND userid = $2",
+      [portfolioId, userId]
+    );
+
+    if (portfolioResult.rows.length === 0) {
+      return res.status(404).json({ error: "Portfolio not found" });
+    }
+
+    // Get stock transactions with stock details
+    const transactionsResult = await pool.query(
+      `SELECT st.*, s.company_name 
+       FROM stock_transaction st 
+       JOIN stock s ON st.symbol = s.symbol 
+       WHERE st.portfolio_id = $1 
+       ORDER BY st.transaction_date DESC`,
+      [portfolioId]
+    );
+
+    res.json(transactionsResult.rows);
+  } catch (error) {
+    console.error("Error fetching transactions:", error);
+    res.status(500).json({ error: "Error fetching transactions" });
+  }
+});
+
+// Get unified stock information
+router.get("/stock/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+
+    // Get historical data
+    const historicalResult = await pool.query(
+      `SELECT 
+        s.symbol,
+        s.company_name
+      FROM stock s 
+      WHERE s.symbol = $1`,
+      [symbol]
+    );
+
+    if (historicalResult.rows.length === 0) {
+      return res.status(404).json({ error: "Stock not found" });
+    }
+
+    // Get latest price data
+    const latestPriceResult = await pool.query(
+      `SELECT 
+        date,
+        open_price,
+        high_price,
+        low_price,
+        close_price,
+        volume
+      FROM stockdata 
+      WHERE symbol = $1 
+      ORDER BY date DESC 
+      LIMIT 1`,
+      [symbol]
+    );
+
+    // Get price history for the last 30 days
+    const priceHistoryResult = await pool.query(
+      `SELECT 
+        date,
+        open_price,
+        high_price,
+        low_price,
+        close_price,
+        volume
+      FROM stockdata 
+      WHERE symbol = $1 
+      ORDER BY date DESC 
+      LIMIT 30`,
+      [symbol]
+    );
+
+    // Combine the data
+    const stockInfo = {
+      ...historicalResult.rows[0],
+      latest_price: latestPriceResult.rows[0] || null,
+      price_history: priceHistoryResult.rows,
+    };
+
+    res.json(stockInfo);
+  } catch (error) {
+    console.error("Error fetching stock information:", error);
+    res.status(500).json({ error: "Error fetching stock information" });
   }
 });
 
