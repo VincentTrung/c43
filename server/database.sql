@@ -18,8 +18,7 @@ CREATE TABLE Users (
     userid SERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    password VARCHAR(255) NOT NULL
 );
 
 -- Portfolio table
@@ -27,7 +26,7 @@ CREATE TABLE Portfolio (
     portfolioid SERIAL PRIMARY KEY,
     userid INTEGER REFERENCES Users(userid),
     name VARCHAR(100) NOT NULL,
-    cashBalance DECIMAL(15, 2) DEFAULT 0.00
+    cash_balance DECIMAL(15, 2) DEFAULT 0.00
 );
 
 -- Stock table
@@ -48,7 +47,7 @@ CREATE TABLE StockData (
     PRIMARY KEY (symbol, date)
 );
 
--- Stock holdings (fixed table name to match)
+-- Stock holdings
 CREATE TABLE StockHolding (
     holdingid SERIAL PRIMARY KEY,
     portfolioid INTEGER REFERENCES Portfolio(portfolioid),
@@ -61,8 +60,7 @@ CREATE TABLE StockList (
     listid SERIAL PRIMARY KEY,
     userid INTEGER REFERENCES Users(userid),
     name VARCHAR(100) NOT NULL,
-    visibility VARCHAR(10) NOT NULL CHECK (visibility IN ('private', 'shared', 'public')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    visibility VARCHAR(10) NOT NULL CHECK (visibility IN ('private', 'shared', 'public'))
 );
 
 -- StockList items
@@ -80,7 +78,7 @@ CREATE TABLE FriendRequest (
     receiver_userid INTEGER REFERENCES Users(userid),
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    rejected_time TIMESTAMP, -- Added comma
+    rejected_time TIMESTAMP, 
     CHECK (
         (status = 'rejected' AND rejected_time IS NOT NULL) OR
         (status <> 'rejected' AND rejected_time IS NULL)
@@ -109,7 +107,6 @@ CREATE TABLE SharedStockList (
 CREATE TABLE Friend (
     user1_id INTEGER REFERENCES Users(userid),
     user2_id INTEGER REFERENCES Users(userid),
-    friends_since TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user1_id, user2_id),
     CHECK (user1_id < user2_id) -- Prevent duplicates
 );

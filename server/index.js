@@ -1,33 +1,15 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");
 const bcrypt = require("bcrypt");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const cookieParser = require("cookie-parser");
+const portfolioRoutes = require("./routes/portfolio");
+const pool = require("./db");
 
 const app = express();
 const port = process.env.PORT || 3001;
-
-// Database configuration
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-});
-
-// Test database connection
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error("Error connecting to the database:", err);
-  } else {
-    console.log("Successfully connected to database");
-    release();
-  }
-});
 
 // Middleware
 app.use(
@@ -134,6 +116,7 @@ app.post("/api/auth/login", async (req, res) => {
     res.status(500).json({ message: "Error logging in", error: error.message });
   }
 });
+
 // Logout route
 app.post("/api/auth/logout", (req, res) => {
   req.session.destroy((err) => {
@@ -148,6 +131,9 @@ app.post("/api/auth/logout", (req, res) => {
 app.get("/api/auth/check", authenticateSession, (req, res) => {
   res.json({ authenticated: true, user: req.session.user });
 });
+
+// Apply authentication middleware to portfolio routes
+app.use("/api/portfolio", authenticateSession, portfolioRoutes);
 
 // Start server
 app.listen(port, () => {

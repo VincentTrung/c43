@@ -1,6 +1,6 @@
 const API_BASE_URL = "http://localhost:3001/api";
 
-export const api = {
+const api = {
   // Auth endpoints
   register: async (username, email, password) => {
     const response = await fetch(`${API_BASE_URL}/auth/register`, {
@@ -54,13 +54,74 @@ export const api = {
 
   checkAuth: async () => {
     const response = await fetch(`${API_BASE_URL}/auth/check`, {
-      credentials: "include", // Important for sessions
+      credentials: "include",
     });
 
     if (!response.ok) {
-      return null;
+      throw new Error("Not authenticated");
+    }
+
+    return response.json();
+  },
+
+  // Portfolio functions
+  getPortfolios: async () => {
+    const response = await fetch(`${API_BASE_URL}/portfolio`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch portfolios");
+    }
+
+    return response.json();
+  },
+
+  createPortfolio: async (name) => {
+    const response = await fetch(`${API_BASE_URL}/portfolio`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ name }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to create portfolio");
+    }
+
+    return response.json();
+  },
+
+  getPortfolio: async (portfolioId) => {
+    const response = await fetch(`${API_BASE_URL}/portfolio/${portfolioId}`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch portfolio");
+    }
+
+    return response.json();
+  },
+
+  deletePortfolio: async (portfolioId) => {
+    const response = await fetch(`${API_BASE_URL}/portfolio/${portfolioId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to delete portfolio");
     }
 
     return response.json();
   },
 };
+
+export default api;

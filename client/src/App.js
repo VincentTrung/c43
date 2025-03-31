@@ -7,15 +7,27 @@ import {
 } from "react-router-dom";
 import Login from "./components/Login";
 import Register from "./components/Register";
+import PortfolioDashboard from "./components/PortfolioDashboard";
+import PrivateRoute from "./components/PrivateRoute";
 
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <div className="App">
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <PortfolioDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </div>
     </Router>
   );
 }
