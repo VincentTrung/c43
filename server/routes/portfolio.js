@@ -472,14 +472,16 @@ router.get("/:portfolioId/transactions", async (req, res) => {
 
     // Get cash transactions
     const cashTransactionsResult = await pool.query(
-      `SELECT 
+      `SELECT DISTINCT
         pt.transactionid,
         pt.timestamp,
         pt.type,
         pt.amount,
+        pt.source_portfolio_id,
+        pt.destination_portfolio_id,
         'CASH' as transaction_type
        FROM portfoliotransaction pt
-       WHERE pt.portfolioid = $1`,
+       WHERE pt.portfolioid = $1 OR pt.destination_portfolio_id = $1`,
       [portfolioId]
     );
 
@@ -630,23 +632,28 @@ router.post("/:portfolioId/transactions", async (req, res) => {
         [amount, sourcePortfolioId]
       );
 
-      // Create transaction for source portfolio
+      // Add to destination portfolio
       await client.query(
+        "UPDATE portfolio SET cash_balance = cash_balance + $1 WHERE portfolioid = $2",
+        [amount, portfolioId]
+      );
+
+      // Create a single transfer transaction record
+      const transactionResult = await client.query(
         `INSERT INTO portfoliotransaction 
         (portfolioid, type, amount, source_portfolio_id, destination_portfolio_id) 
-        VALUES ($1, $2, $3, $4, $5)`,
-        [
-          sourcePortfolioId,
-          "WITHDRAWAL",
-          amount,
-          sourcePortfolioId,
-          portfolioId,
-        ]
+        VALUES ($1, 'TRANSFER', $2, $3, $4) 
+        RETURNING *`,
+        [sourcePortfolioId, amount, sourcePortfolioId, portfolioId]
       );
+
+      await client.query("COMMIT");
+      res.json(transactionResult.rows[0]);
+      return;
     }
 
     // Update portfolio balance
-    if (type === "deposit" || type === "transfer") {
+    if (type === "deposit") {
       await client.query(
         "UPDATE portfolio SET cash_balance = cash_balance + $1 WHERE portfolioid = $2",
         [amount, portfolioId]
@@ -669,23 +676,16 @@ router.post("/:portfolioId/transactions", async (req, res) => {
       );
     }
 
-    // Create transaction record
+    // Create transaction record for non-transfer transactions
     const transactionResult = await client.query(
       `INSERT INTO portfoliotransaction 
-      (portfolioid, type, amount, source_portfolio_id, destination_portfolio_id) 
-      VALUES ($1, $2, $3, $4, $5) 
+      (portfolioid, type, amount) 
+      VALUES ($1, $2, $3) 
       RETURNING *`,
-      [
-        portfolioId,
-        type === "transfer" ? "DEPOSIT" : type.toUpperCase(),
-        amount,
-        sourcePortfolioId,
-        portfolioId,
-      ]
+      [portfolioId, type.toUpperCase(), amount]
     );
 
     await client.query("COMMIT");
-
     res.json(transactionResult.rows[0]);
   } catch (error) {
     await client.query("ROLLBACK");

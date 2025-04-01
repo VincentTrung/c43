@@ -92,6 +92,7 @@ const PortfolioPage = () => {
         ...transaction,
         quantity: parseInt(transaction.quantity) || 0,
         price: parseFloat(transaction.price) || 0,
+        amount: parseFloat(transaction.amount) || 0,
       }));
       setTransactions(processedData);
     } catch (err) {
@@ -122,12 +123,12 @@ const PortfolioPage = () => {
   }, [fetchPortfolio, fetchTransactions, fetchPortfolios]);
 
   // Handle cash deposit
-  const handleDeposit = async (e) => {
-    e.preventDefault();
+  const handleDeposit = async () => {
     try {
       setError("");
       await api.depositCash(portfolioId, parseFloat(depositAmount));
       setDepositAmount("");
+      setDepositDialogOpen(false);
       fetchPortfolio();
       fetchTransactions();
     } catch (err) {
@@ -138,12 +139,12 @@ const PortfolioPage = () => {
   };
 
   // Handle cash withdrawal
-  const handleWithdraw = async (e) => {
-    e.preventDefault();
+  const handleWithdraw = async () => {
     try {
       setError("");
       await api.withdrawCash(portfolioId, parseFloat(withdrawAmount));
       setWithdrawAmount("");
+      setWithdrawDialogOpen(false);
       fetchPortfolio();
       fetchTransactions();
     } catch (err) {
@@ -202,14 +203,22 @@ const PortfolioPage = () => {
         return;
       }
 
-      await api.createPortfolioTransaction(portfolio.portfolioid, {
-        type: "transfer",
-        amount: amount,
-        sourcePortfolioId: sourcePortfolioId,
-      });
+      // Create a single transfer transaction
+      const transactions = await api.createPortfolioTransaction(
+        portfolio.portfolioid,
+        {
+          type: "transfer",
+          amount: amount,
+          sourcePortfolioId: sourcePortfolioId,
+        }
+      );
 
       // Refresh both portfolio and portfolios data
-      await Promise.all([fetchPortfolio(), fetchPortfolios()]);
+      await Promise.all([
+        fetchPortfolio(),
+        fetchTransactions(),
+        fetchPortfolios(),
+      ]);
 
       setTransferDialogOpen(false);
       setTransferAmount("");
@@ -445,27 +454,63 @@ const PortfolioPage = () => {
                 <th className="px-4 py-2">Date</th>
                 <th className="px-4 py-2">Type</th>
                 <th className="px-4 py-2">Amount</th>
+                <th className="px-4 py-2">Description</th>
               </tr>
             </thead>
             <tbody>
               {transactions
-                .filter((t) => t.type === "DEPOSIT" || t.type === "WITHDRAWAL")
+                .filter(
+                  (t) => t.transaction_type === "CASH" || t.type === "TRANSFER"
+                )
                 .map((transaction) => (
-                  <tr key={transaction.transactionid} className="border-b">
+                  <tr
+                    key={`${transaction.transactionid}-${transaction.type}`}
+                    className="border-b"
+                  >
                     <td className="px-4 py-2">
                       {new Date(transaction.timestamp).toLocaleDateString()}
                     </td>
+                    <td className="px-4 py-2">
+                      {transaction.type === "TRANSFER"
+                        ? transaction.source_portfolio_id ===
+                          portfolio.portfolioid
+                          ? "TRANSFER WITHDRAWAL"
+                          : "TRANSFER DEPOSIT"
+                        : transaction.type === "DEPOSIT"
+                        ? "EXTERNAL DEPOSIT"
+                        : "EXTERNAL WITHDRAWAL"}
+                    </td>
                     <td
                       className={`px-4 py-2 ${
-                        transaction.type === "DEPOSIT"
+                        transaction.type === "TRANSFER"
+                          ? transaction.source_portfolio_id ===
+                            portfolio.portfolioid
+                            ? "text-red-600"
+                            : "text-green-600"
+                          : transaction.type === "DEPOSIT"
                           ? "text-green-600"
                           : "text-red-600"
                       }`}
                     >
-                      {transaction.type}
+                      {transaction.type === "TRANSFER"
+                        ? transaction.source_portfolio_id ===
+                          portfolio.portfolioid
+                          ? "-"
+                          : "+"
+                        : transaction.type === "DEPOSIT"
+                        ? "+"
+                        : "-"}
+                      ${transaction.amount.toFixed(2)}
                     </td>
                     <td className="px-4 py-2">
-                      ${Math.abs(transaction.amount).toFixed(2)}
+                      {transaction.type === "TRANSFER"
+                        ? transaction.source_portfolio_id ===
+                          portfolio.portfolioid
+                          ? `Transfer to Portfolio #${transaction.destination_portfolio_id}`
+                          : `Transfer from Portfolio #${transaction.source_portfolio_id}`
+                        : transaction.type === "DEPOSIT"
+                        ? "External Deposit"
+                        : "External Withdrawal"}
                     </td>
                   </tr>
                 ))}
@@ -545,18 +590,7 @@ const PortfolioPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDepositDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={async () => {
-              try {
-                await handleDeposit();
-                setDepositDialogOpen(false);
-              } catch (err) {
-                setError(err.message);
-              }
-            }}
-            variant="contained"
-            color="primary"
-          >
+          <Button onClick={handleDeposit} variant="contained" color="primary">
             Deposit
           </Button>
         </DialogActions>
@@ -582,18 +616,7 @@ const PortfolioPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setWithdrawDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={async () => {
-              try {
-                await handleWithdraw();
-                setWithdrawDialogOpen(false);
-              } catch (err) {
-                setError(err.message);
-              }
-            }}
-            variant="contained"
-            color="error"
-          >
+          <Button onClick={handleWithdraw} variant="contained" color="error">
             Withdraw
           </Button>
         </DialogActions>
