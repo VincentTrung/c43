@@ -1,5 +1,13 @@
 CREATE DATABASE StockApp;
 
+-- Create session table for connect-pg-simple
+CREATE TABLE IF NOT EXISTS session (
+    sid varchar NOT NULL COLLATE DEFAULT,
+    sess json NOT NULL,
+    expire timestamp(6) NOT NULL,
+    CONSTRAINT session_pkey PRIMARY KEY (sid)
+);
+
 -- Drop existing tables if they exist
 DROP TABLE IF EXISTS Review CASCADE;
 DROP TABLE IF EXISTS SharedStockList CASCADE;

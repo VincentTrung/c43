@@ -46,9 +46,9 @@ const DashboardPage = () => {
     }
   };
 
-  const handleCreateStockList = async (name) => {
+  const handleCreateStockList = async (name, visibility) => {
     try {
-      const newStockList = await api.createStockList(name);
+      const newStockList = await api.createStockList(name, visibility);
       setStockLists([...stockLists, newStockList]);
     } catch (err) {
       setError("Error creating stock list");
@@ -164,24 +164,20 @@ const DashboardPage = () => {
           {stockLists.map((list) => (
             <div
               key={list.listid}
-              className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow"
+              className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => navigate(`/stocklist/${list.listid}`)}
             >
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-xl font-semibold">{list.name}</h3>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => navigate(`/stocklist/${list.listid}`)}
-                    className="text-blue-500 hover:text-blue-700"
-                  >
-                    View
-                  </button>
-                  <button
-                    onClick={() => handleDeleteStockList(list.listid)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
-                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteStockList(list.listid);
+                  }}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  Delete
+                </button>
               </div>
               <div className="text-gray-600">
                 <p>Visibility: {list.visibility}</p>
@@ -213,6 +209,7 @@ const DashboardPage = () => {
         onSubmit={handleCreateStockList}
         title="Create New Stock List"
         placeholder="Enter stock list name"
+        type="stocklist"
       />
     </div>
   );

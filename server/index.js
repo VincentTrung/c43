@@ -2,10 +2,10 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
-const pgSession = require("connect-pg-simple")(session);
 const cookieParser = require("cookie-parser");
 const { router: authRoutes, authenticateSession } = require("./routes/auth");
 const portfolioRoutes = require("./routes/portfolio");
+const stocklistRoutes = require("./routes/stocklist");
 const pool = require("./db");
 
 const app = express();
@@ -21,14 +21,9 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// Session configuration
+// Session configuration with memory store
 app.use(
   session({
-    store: new pgSession({
-      pool: pool,
-      tableName: "sessions",
-      createTableIfMissing: true,
-    }),
     secret: process.env.SESSION_SECRET || "your-secret-key",
     resave: false,
     saveUninitialized: false,
@@ -36,14 +31,15 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: "lax",
     },
+    store: new session.MemoryStore(),
   })
 );
 
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/portfolio", authenticateSession, portfolioRoutes);
+app.use("/api/stocklist", authenticateSession, stocklistRoutes);
 
 // Start server
 app.listen(port, () => {

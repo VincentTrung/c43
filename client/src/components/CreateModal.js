@@ -1,12 +1,25 @@
 import React, { useState } from "react";
 
-const CreateModal = ({ isOpen, onClose, onSubmit, title, placeholder }) => {
+const CreateModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  title,
+  placeholder,
+  type,
+}) => {
   const [name, setName] = useState("");
+  const [visibility, setVisibility] = useState("private");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(name);
+    if (type === "stocklist") {
+      onSubmit(name, visibility);
+    } else {
+      onSubmit(name);
+    }
     setName("");
+    setVisibility("private");
     onClose();
   };
 
@@ -25,6 +38,17 @@ const CreateModal = ({ isOpen, onClose, onSubmit, title, placeholder }) => {
             className="w-full p-2 border rounded mb-4"
             required
           />
+          {type === "stocklist" && (
+            <select
+              value={visibility}
+              onChange={(e) => setVisibility(e.target.value)}
+              className="w-full p-2 border rounded mb-4"
+            >
+              <option value="private">Private</option>
+              <option value="shared">Shared</option>
+              <option value="public">Public</option>
+            </select>
+          )}
           <div className="flex justify-end gap-2">
             <button
               type="button"

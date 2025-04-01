@@ -237,6 +237,52 @@ const api = {
 
     return response.json();
   },
+
+  // StockList functions
+  createStockList: async (name, visibility) => {
+    const response = await fetch(`${API_BASE_URL}/stocklist`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ name, visibility }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to create stock list");
+    }
+
+    return response.json();
+  },
+
+  getStockLists: async () => {
+    const response = await fetch(`${API_BASE_URL}/stocklist`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch stock lists");
+    }
+
+    return response.json();
+  },
+
+  deleteStockList: async (listId) => {
+    const response = await fetch(`${API_BASE_URL}/stocklist/${listId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to delete stock list");
+    }
+
+    return response.json();
+  },
 };
 
 export default api;
