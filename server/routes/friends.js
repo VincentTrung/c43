@@ -6,6 +6,45 @@ const { authenticateSession } = require("./auth");
 // Apply authentication middleware to all routes
 router.use(authenticateSession);
 
+// Cleanup old friend request records
+const cleanupFriendRequests = async (client) => {
+  try {
+    // Delete accepted requests
+    await client.query("DELETE FROM friendrequest WHERE status = 'accepted'");
+
+    // Delete rejected requests older than 5 minutes
+    await client.query(
+      "DELETE FROM friendrequest WHERE status = 'rejected' AND rejected_time < NOW() - INTERVAL '5 minutes'"
+    );
+
+    // Delete rejected requests if users are friends
+    await client.query(
+      `DELETE FROM friendrequest fr
+       WHERE fr.status = 'rejected'
+       AND EXISTS (
+         SELECT 1 FROM friend f
+         WHERE ((f.user1_id = fr.sender_userid AND f.user2_id = fr.receiver_userid) OR
+                (f.user2_id = fr.sender_userid AND f.user1_id = fr.receiver_userid))
+       )`
+    );
+
+    // Delete duplicate requests (keep only the most recent one)
+    await client.query(
+      `DELETE FROM friendrequest a USING (
+        SELECT MAX(requestid) as requestid, sender_userid, receiver_userid
+        FROM friendrequest
+        GROUP BY sender_userid, receiver_userid
+        HAVING COUNT(*) > 1
+      ) b
+      WHERE a.sender_userid = b.sender_userid 
+      AND a.receiver_userid = b.receiver_userid
+      AND a.requestid < b.requestid`
+    );
+  } catch (error) {
+    console.error("Error cleaning up friend requests:", error);
+  }
+};
+
 // Get all friends
 router.get("/", async (req, res) => {
   try {
@@ -86,6 +125,9 @@ router.post("/requests", async (req, res) => {
 
     await client.query("BEGIN");
 
+    // Cleanup old records first
+    await cleanupFriendRequests(client);
+
     // Get receiver's user ID
     const receiverResult = await client.query(
       "SELECT userid FROM users WHERE email = $1",
@@ -98,6 +140,14 @@ router.post("/requests", async (req, res) => {
     }
 
     const receiverId = receiverResult.rows[0].userid;
+
+    // Prevent sending friend request to yourself
+    if (senderId === receiverId) {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ message: "Cannot send friend request to yourself" });
+    }
 
     // Check if they're already friends
     const friendResult = await client.query(
@@ -126,20 +176,21 @@ router.post("/requests", async (req, res) => {
       return res.status(400).json({ message: "Friend request already sent" });
     }
 
-    // Check for rejected request within 5 minutes
-    const recentRejectionResult = await client.query(
+    // Check if the user was deleted by the receiver within 5 minutes
+    const recentDeletionResult = await client.query(
       `SELECT 1 FROM friendrequest 
-       WHERE ((sender_userid = $1 AND receiver_userid = $2) OR 
-              (sender_userid = $2 AND receiver_userid = $1))
+       WHERE sender_userid = $1
+       AND receiver_userid = $2
        AND status = 'rejected'
        AND rejected_time > NOW() - INTERVAL '5 minutes'`,
       [senderId, receiverId]
     );
 
-    if (recentRejectionResult.rows.length > 0) {
+    if (recentDeletionResult.rows.length > 0) {
       await client.query("ROLLBACK");
       return res.status(400).json({
-        message: "Please wait 5 minutes before sending another request",
+        message:
+          "Please wait 5 minutes before sending a request to someone who deleted you",
       });
     }
 
@@ -170,6 +221,9 @@ router.post("/requests/:requestId/accept", async (req, res) => {
     const userId = req.session.user.userid;
 
     await client.query("BEGIN");
+
+    // Cleanup old records first
+    await cleanupFriendRequests(client);
 
     // Get request details
     const requestResult = await client.query(
@@ -214,11 +268,17 @@ router.post("/requests/:requestId/accept", async (req, res) => {
 
 // Reject friend request
 router.post("/requests/:requestId/reject", async (req, res) => {
+  const client = await pool.connect();
   try {
     const { requestId } = req.params;
     const userId = req.session.user.userid;
 
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    // Cleanup old records first
+    await cleanupFriendRequests(client);
+
+    const result = await client.query(
       `UPDATE friendrequest 
        SET status = 'rejected', rejected_time = NOW()
        WHERE requestid = $1 AND receiver_userid = $2 AND status = 'pending'`,
@@ -226,13 +286,18 @@ router.post("/requests/:requestId/reject", async (req, res) => {
     );
 
     if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ message: "Friend request not found" });
     }
 
+    await client.query("COMMIT");
     res.json({ message: "Friend request rejected" });
   } catch (error) {
+    await client.query("ROLLBACK");
     console.error("Error rejecting friend request:", error);
     res.status(500).json({ message: "Error rejecting friend request" });
+  } finally {
+    client.release();
   }
 });
 
@@ -244,6 +309,9 @@ router.delete("/:friendId", async (req, res) => {
     const userId = req.session.user.userid;
 
     await client.query("BEGIN");
+
+    // Cleanup old records first
+    await cleanupFriendRequests(client);
 
     // Delete friendship
     const result = await client.query(
@@ -258,11 +326,11 @@ router.delete("/:friendId", async (req, res) => {
       return res.status(404).json({ message: "Friend not found" });
     }
 
-    // Create rejected friend request to prevent immediate re-adding
+    // Create rejected friend request only from the deleted user's side
     await client.query(
       `INSERT INTO friendrequest (sender_userid, receiver_userid, status, rejected_time)
        VALUES ($1, $2, 'rejected', NOW())`,
-      [friendId, userId]
+      [friendId, userId] // friendId is the sender (deleted user), userId is the receiver (deleter)
     );
 
     await client.query("COMMIT");
