@@ -32,19 +32,13 @@ router.get("/", async (req, res) => {
   try {
     const userId = req.session.user.userid;
 
-    // Get user's own lists and public lists from others
+    // Get only user's own lists
     const result = await pool.query(
       `SELECT sl.*, u.username as creator_name,
               (SELECT COUNT(*) FROM stocklistitem WHERE listid = sl.listid) as item_count
        FROM stocklist sl
        JOIN users u ON sl.userid = u.userid
-       WHERE sl.userid = $1 
-       OR (sl.visibility = 'public')
-       OR (sl.visibility = 'shared' AND EXISTS (
-         SELECT 1 FROM sharedstocklist ssl 
-         WHERE ssl.listid = sl.listid 
-         AND ssl.shared_with_userid = $1
-       ))
+       WHERE sl.userid = $1
        ORDER BY sl.listid DESC`,
       [userId]
     );

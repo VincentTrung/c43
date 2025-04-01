@@ -108,9 +108,27 @@ const DashboardPage = () => {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+      navigate("/login");
+    } catch (err) {
+      setError("Error logging out");
+      console.error("Error:", err);
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors"
+        >
+          Logout
+        </button>
+      </div>
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
