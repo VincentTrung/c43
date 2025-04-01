@@ -109,17 +109,15 @@ router.get("/shared", async (req, res) => {
   try {
     const userId = req.session.user.userid;
 
-    // Get shared lists from friends
+    // Get lists explicitly shared with the user
     const result = await pool.query(
       `SELECT sl.*, u.username as owner_name,
               (SELECT COUNT(*) FROM stocklistitem WHERE listid = sl.listid) as item_count
        FROM stocklist sl
        JOIN users u ON sl.userid = u.userid
-       JOIN friend f ON (
-         (f.user1_id = $1 AND f.user2_id = sl.userid) OR
-         (f.user2_id = $1 AND f.user1_id = sl.userid)
-       )
-       WHERE sl.visibility = 'shared'
+       JOIN sharedstocklist ssl ON sl.listid = ssl.listid
+       WHERE ssl.shared_with_userid = $1
+       AND sl.visibility = 'shared'
        ORDER BY sl.name`,
       [userId]
     );
