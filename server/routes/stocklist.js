@@ -54,29 +54,40 @@ router.get("/", async (req, res) => {
 
 // Delete a stock list
 router.delete("/:listId", async (req, res) => {
+  const client = await pool.connect();
   try {
     const { listId } = req.params;
     const userId = req.session.user.userid;
 
+    await client.query("BEGIN");
+
     // Verify list belongs to user
-    const listResult = await pool.query(
+    const listResult = await client.query(
       "SELECT * FROM stocklist WHERE listid = $1 AND userid = $2",
       [listId, userId]
     );
 
     if (listResult.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ message: "Stock list not found" });
     }
 
-    // Delete the list (cascade will handle related records)
-    await pool.query("DELETE FROM stocklist WHERE listid = $1", [listId]);
+    // First delete all stock list items
+    await client.query("DELETE FROM stocklistitem WHERE listid = $1", [listId]);
 
+    // Then delete the list
+    await client.query("DELETE FROM stocklist WHERE listid = $1", [listId]);
+
+    await client.query("COMMIT");
     res.json({ message: "Stock list deleted successfully" });
   } catch (error) {
+    await client.query("ROLLBACK");
     console.error("Error deleting stock list:", error);
     res
       .status(500)
       .json({ message: "Error deleting stock list", error: error.message });
+  } finally {
+    client.release();
   }
 });
 
