@@ -344,11 +344,9 @@ const PortfolioPage = () => {
             </thead>
             <tbody>
               {transactions.map((transaction) => (
-                <tr key={transaction.transaction_id} className="border-b">
+                <tr key={transaction.transactionid} className="border-b">
                   <td className="px-4 py-2">
-                    {new Date(
-                      transaction.transaction_date
-                    ).toLocaleDateString()}
+                    {new Date(transaction.timestamp).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-2">{transaction.symbol}</td>
                   <td className="px-4 py-2">{transaction.company_name}</td>

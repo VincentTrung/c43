@@ -35,13 +35,13 @@ router.get("/", async (req, res) => {
     console.log("Fetching portfolios for user:", userId);
 
     const result = await pool.query(
-      `SELECT p.portfolioid, p.userid, p.name, p.cash_balance, p.created_at,
+      `SELECT p.portfolioid, p.userid, p.name, p.cash_balance,
               COALESCE(SUM(sh.quantity * COALESCE(sd.close_price, 0)), 0) as total_value 
        FROM portfolio p 
        LEFT JOIN stockholding sh ON p.portfolioid = sh.portfolioid 
        LEFT JOIN stockdata sd ON sh.symbol = sd.symbol 
        WHERE p.userid = $1 
-       GROUP BY p.portfolioid, p.userid, p.name, p.cash_balance, p.created_at`,
+       GROUP BY p.portfolioid, p.userid, p.name, p.cash_balance`,
       [userId]
     );
 
@@ -64,7 +64,7 @@ router.get("/:portfolioId", async (req, res) => {
 
     // Verify portfolio belongs to user
     const portfolioResult = await pool.query(
-      "SELECT portfolioid, userid, name, cash_balance, created_at FROM portfolio WHERE portfolioid = $1 AND userid = $2",
+      "SELECT portfolioid, userid, name, cash_balance FROM portfolio WHERE portfolioid = $1 AND userid = $2",
       [portfolioId, userId]
     );
 
@@ -183,7 +183,7 @@ router.post("/:portfolioId/cash/deposit", async (req, res) => {
 
     // Record transaction
     await pool.query(
-      "INSERT INTO portfolio_transaction (portfolio_id, type, amount) VALUES ($1, 'DEPOSIT', $2)",
+      "INSERT INTO stocktransaction (portfolioid, type, amount) VALUES ($1, 'DEPOSIT', $2)",
       [portfolioId, amount]
     );
 
@@ -232,7 +232,7 @@ router.post("/:portfolioId/cash/withdraw", async (req, res) => {
 
     // Record transaction
     await pool.query(
-      "INSERT INTO portfolio_transaction (portfolio_id, type, amount) VALUES ($1, 'WITHDRAWAL', $2)",
+      "INSERT INTO stocktransaction (portfolioid, type, amount) VALUES ($1, 'WITHDRAWAL', $2)",
       [portfolioId, amount]
     );
 
@@ -317,7 +317,7 @@ router.post("/:portfolioId/stocks/buy", async (req, res) => {
 
     // Record stock transaction
     await client.query(
-      "INSERT INTO stock_transaction (portfolio_id, symbol, type, quantity, price) VALUES ($1, $2, 'BUY', $3, $4)",
+      "INSERT INTO stocktransaction (portfolioid, symbol, type, quantity, price) VALUES ($1, $2, 'BUY', $3, $4)",
       [portfolioId, symbol, quantity, currentPrice]
     );
 
@@ -407,7 +407,7 @@ router.post("/:portfolioId/stocks/sell", async (req, res) => {
 
     // Record stock transaction
     await client.query(
-      "INSERT INTO stock_transaction (portfolio_id, symbol, type, quantity, price) VALUES ($1, $2, 'SELL', $3, $4)",
+      "INSERT INTO stocktransaction (portfolioid, symbol, type, quantity, price) VALUES ($1, $2, 'SELL', $3, $4)",
       [portfolioId, symbol, quantity, currentPrice]
     );
 
@@ -456,10 +456,10 @@ router.get("/:portfolioId/transactions", async (req, res) => {
     // Get stock transactions with stock details
     const transactionsResult = await pool.query(
       `SELECT st.*, s.company_name 
-       FROM stock_transaction st 
+       FROM stocktransaction st 
        JOIN stock s ON st.symbol = s.symbol 
-       WHERE st.portfolio_id = $1 
-       ORDER BY st.transaction_date DESC`,
+       WHERE st.portfolioid = $1 
+       ORDER BY st.timestamp DESC`,
       [portfolioId]
     );
 
