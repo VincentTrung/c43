@@ -19,7 +19,8 @@ DROP TABLE IF EXISTS StockHolding CASCADE;
 DROP TABLE IF EXISTS Stock CASCADE;
 DROP TABLE IF EXISTS Portfolio CASCADE;
 DROP TABLE IF EXISTS Users CASCADE;
-DROP TABLE IF EXISTS StockTransaction CASCADE; 
+DROP TABLE IF EXISTS StockTransaction CASCADE;
+DROP TABLE IF EXISTS PortfolioTransaction CASCADE;
 
 -- Users table
 CREATE TABLE Users (
@@ -60,7 +61,8 @@ CREATE TABLE StockHolding (
     holdingid SERIAL PRIMARY KEY,
     portfolioid INTEGER REFERENCES Portfolio(portfolioid),
     symbol VARCHAR(10) REFERENCES Stock(symbol), 
-    quantity INTEGER NOT NULL
+    quantity INTEGER NOT NULL,
+    UNIQUE (portfolioid, symbol)
 );
 
 -- StockList table
@@ -119,7 +121,7 @@ CREATE TABLE Friend (
     CHECK (user1_id < user2_id) -- Prevent duplicates
 );
 
--- StockTransaction table 
+-- StockTransaction table (renamed to be more specific to stock trades)
 CREATE TABLE StockTransaction (
     transactionid SERIAL PRIMARY KEY,
     portfolioid INTEGER REFERENCES Portfolio(portfolioid),
@@ -130,6 +132,17 @@ CREATE TABLE StockTransaction (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- PortfolioTransaction table for cash transactions
+CREATE TABLE PortfolioTransaction (
+    transactionid SERIAL PRIMARY KEY,
+    portfolioid INTEGER REFERENCES Portfolio(portfolioid),
+    type VARCHAR(10) CHECK (type IN ('DEPOSIT', 'WITHDRAWAL')),
+    amount DECIMAL(15, 2) NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes
 CREATE INDEX idx_portfolio_userid ON Portfolio(userid);
 CREATE INDEX idx_stockdata_symbol ON StockData(symbol);
+CREATE INDEX idx_portfolio_transaction_portfolioid ON PortfolioTransaction(portfolioid);
+CREATE INDEX idx_stock_transaction_portfolioid ON StockTransaction(portfolioid);

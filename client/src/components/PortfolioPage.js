@@ -326,9 +326,9 @@ const PortfolioPage = () => {
         />
       )}
 
-      {/* Transaction History Section */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-4">Transaction History</h2>
+      {/* Stock Trading History Section */}
+      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+        <h2 className="text-xl font-semibold mb-4">Stock Trading History</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead>
@@ -343,29 +343,72 @@ const PortfolioPage = () => {
               </tr>
             </thead>
             <tbody>
-              {transactions.map((transaction) => (
-                <tr key={transaction.transactionid} className="border-b">
-                  <td className="px-4 py-2">
-                    {new Date(transaction.timestamp).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-2">{transaction.symbol}</td>
-                  <td className="px-4 py-2">{transaction.company_name}</td>
-                  <td
-                    className={`px-4 py-2 ${
-                      transaction.type === "BUY"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {transaction.type}
-                  </td>
-                  <td className="px-4 py-2">{transaction.quantity}</td>
-                  <td className="px-4 py-2">${transaction.price.toFixed(2)}</td>
-                  <td className="px-4 py-2">
-                    ${(transaction.quantity * transaction.price).toFixed(2)}
-                  </td>
-                </tr>
-              ))}
+              {transactions
+                .filter((t) => t.type === "BUY" || t.type === "SELL")
+                .map((transaction) => (
+                  <tr key={transaction.transactionid} className="border-b">
+                    <td className="px-4 py-2">
+                      {new Date(transaction.timestamp).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2">{transaction.symbol}</td>
+                    <td className="px-4 py-2">{transaction.company_name}</td>
+                    <td
+                      className={`px-4 py-2 ${
+                        transaction.type === "BUY"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {transaction.type}
+                    </td>
+                    <td className="px-4 py-2">{transaction.quantity}</td>
+                    <td className="px-4 py-2">
+                      ${transaction.price.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2">
+                      ${(transaction.quantity * transaction.price).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Cash Transaction History Section */}
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-4">Transaction History</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="px-4 py-2">Date</th>
+                <th className="px-4 py-2">Type</th>
+                <th className="px-4 py-2">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions
+                .filter((t) => t.type === "DEPOSIT" || t.type === "WITHDRAWAL")
+                .map((transaction) => (
+                  <tr key={transaction.transactionid} className="border-b">
+                    <td className="px-4 py-2">
+                      {new Date(transaction.timestamp).toLocaleDateString()}
+                    </td>
+                    <td
+                      className={`px-4 py-2 ${
+                        transaction.type === "DEPOSIT"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {transaction.type}
+                    </td>
+                    <td className="px-4 py-2">
+                      ${Math.abs(transaction.amount).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>

@@ -181,9 +181,9 @@ router.post("/:portfolioId/cash/deposit", async (req, res) => {
       [amount, portfolioId]
     );
 
-    // Record transaction
+    // Record transaction in PortfolioTransaction table
     await pool.query(
-      "INSERT INTO stocktransaction (portfolioid, type, amount) VALUES ($1, 'DEPOSIT', $2)",
+      "INSERT INTO portfoliotransaction (portfolioid, type, amount) VALUES ($1, 'DEPOSIT', $2)",
       [portfolioId, amount]
     );
 
@@ -230,9 +230,9 @@ router.post("/:portfolioId/cash/withdraw", async (req, res) => {
       [amount, portfolioId]
     );
 
-    // Record transaction
+    // Record transaction in PortfolioTransaction table
     await pool.query(
-      "INSERT INTO stocktransaction (portfolioid, type, amount) VALUES ($1, 'WITHDRAWAL', $2)",
+      "INSERT INTO portfoliotransaction (portfolioid, type, amount) VALUES ($1, 'WITHDRAWAL', $2)",
       [portfolioId, amount]
     );
 
@@ -437,7 +437,7 @@ router.post("/:portfolioId/stocks/sell", async (req, res) => {
   }
 });
 
-// Get stock transactions for a portfolio
+// Get all transactions for a portfolio (both stock and cash transactions)
 router.get("/:portfolioId/transactions", async (req, res) => {
   try {
     const { portfolioId } = req.params;
@@ -454,16 +454,42 @@ router.get("/:portfolioId/transactions", async (req, res) => {
     }
 
     // Get stock transactions with stock details
-    const transactionsResult = await pool.query(
-      `SELECT st.*, s.company_name 
+    const stockTransactionsResult = await pool.query(
+      `SELECT 
+        st.transactionid,
+        st.timestamp,
+        st.type,
+        st.quantity,
+        st.price,
+        st.symbol,
+        s.company_name,
+        'STOCK' as transaction_type
        FROM stocktransaction st 
        JOIN stock s ON st.symbol = s.symbol 
-       WHERE st.portfolioid = $1 
-       ORDER BY st.timestamp DESC`,
+       WHERE st.portfolioid = $1`,
       [portfolioId]
     );
 
-    res.json(transactionsResult.rows);
+    // Get cash transactions
+    const cashTransactionsResult = await pool.query(
+      `SELECT 
+        pt.transactionid,
+        pt.timestamp,
+        pt.type,
+        pt.amount,
+        'CASH' as transaction_type
+       FROM portfoliotransaction pt
+       WHERE pt.portfolioid = $1`,
+      [portfolioId]
+    );
+
+    // Combine and sort all transactions by timestamp
+    const allTransactions = [
+      ...stockTransactionsResult.rows,
+      ...cashTransactionsResult.rows,
+    ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    res.json(allTransactions);
   } catch (error) {
     console.error("Error fetching transactions:", error);
     res.status(500).json({ error: "Error fetching transactions" });
