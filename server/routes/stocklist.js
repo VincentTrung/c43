@@ -115,13 +115,11 @@ router.get("/shared", async (req, res) => {
               (SELECT COUNT(*) FROM stocklistitem WHERE listid = sl.listid) as item_count
        FROM stocklist sl
        JOIN users u ON sl.userid = u.userid
-       JOIN sharedstocklist ssl ON sl.listid = ssl.listid
        JOIN friend f ON (
          (f.user1_id = $1 AND f.user2_id = sl.userid) OR
          (f.user2_id = $1 AND f.user1_id = sl.userid)
        )
-       WHERE ssl.shared_with_userid = $1
-       AND sl.visibility = 'shared'
+       WHERE sl.visibility = 'shared'
        ORDER BY sl.name`,
       [userId]
     );

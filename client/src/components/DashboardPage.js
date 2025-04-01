@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import CreateModal from "./CreateModal";
+import FriendManagement from "./FriendManagement";
 
 const DashboardPage = () => {
   const [portfolios, setPortfolios] = useState([]);
@@ -136,9 +137,12 @@ const DashboardPage = () => {
         </div>
       )}
 
+      {/* Friend Management Section */}
+      <FriendManagement />
+
       {/* Portfolios Section */}
-      <div className="mb-12">
-        <div className="flex justify-between items-center mb-6">
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold">My Portfolios</h2>
           <button
             onClick={() => setIsPortfolioModalOpen(true)}
@@ -147,7 +151,6 @@ const DashboardPage = () => {
             Create Portfolio
           </button>
         </div>
-
         {/* Portfolios List */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {portfolios.map((portfolio) => (

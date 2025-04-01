@@ -6,6 +6,7 @@ const cookieParser = require("cookie-parser");
 const { router: authRoutes, authenticateSession } = require("./routes/auth");
 const portfolioRoutes = require("./routes/portfolio");
 const stocklistRoutes = require("./routes/stocklist");
+const friendsRouter = require("./routes/friends");
 const pool = require("./db");
 
 const app = express();
@@ -40,6 +41,7 @@ app.use(
 app.use("/api/auth", authRoutes);
 app.use("/api/portfolio", authenticateSession, portfolioRoutes);
 app.use("/api/stocklist", authenticateSession, stocklistRoutes);
+app.use("/api/friends", friendsRouter);
 
 // Start server
 app.listen(port, () => {

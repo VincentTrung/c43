@@ -305,6 +305,103 @@ const api = {
     }
     return response.json();
   },
+
+  // Friend Management
+  getFriends: async () => {
+    const response = await fetch(`${API_BASE_URL}/friends`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch friends");
+    }
+    return response.json();
+  },
+
+  getIncomingFriendRequests: async () => {
+    const response = await fetch(`${API_BASE_URL}/friends/requests/incoming`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch incoming friend requests");
+    }
+    return response.json();
+  },
+
+  getOutgoingFriendRequests: async () => {
+    const response = await fetch(`${API_BASE_URL}/friends/requests/outgoing`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch outgoing friend requests");
+    }
+    return response.json();
+  },
+
+  sendFriendRequest: async (email) => {
+    const response = await fetch(`${API_BASE_URL}/friends/requests`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to send friend request");
+    }
+
+    return response.json();
+  },
+
+  acceptFriendRequest: async (requestId) => {
+    const response = await fetch(
+      `${API_BASE_URL}/friends/requests/${requestId}/accept`,
+      {
+        method: "POST",
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to accept friend request");
+    }
+
+    return response.json();
+  },
+
+  rejectFriendRequest: async (requestId) => {
+    const response = await fetch(
+      `${API_BASE_URL}/friends/requests/${requestId}/reject`,
+      {
+        method: "POST",
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to reject friend request");
+    }
+
+    return response.json();
+  },
+
+  deleteFriend: async (friendId) => {
+    const response = await fetch(`${API_BASE_URL}/friends/${friendId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to delete friend");
+    }
+
+    return response.json();
+  },
 };
 
 export default api;
