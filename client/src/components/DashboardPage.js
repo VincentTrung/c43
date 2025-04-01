@@ -5,7 +5,9 @@ import CreateModal from "./CreateModal";
 
 const DashboardPage = () => {
   const [portfolios, setPortfolios] = useState([]);
-  const [stockLists, setStockLists] = useState([]);
+  const [myStockLists, setMyStockLists] = useState([]);
+  const [publicStockLists, setPublicStockLists] = useState([]);
+  const [sharedStockLists, setSharedStockLists] = useState([]);
   const [error, setError] = useState("");
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [isStockListModalOpen, setIsStockListModalOpen] = useState(false);
@@ -13,7 +15,9 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchPortfolios();
-    fetchStockLists();
+    fetchMyStockLists();
+    fetchPublicStockLists();
+    fetchSharedStockLists();
   }, []);
 
   const fetchPortfolios = async () => {
@@ -26,12 +30,32 @@ const DashboardPage = () => {
     }
   };
 
-  const fetchStockLists = async () => {
+  const fetchMyStockLists = async () => {
     try {
       const data = await api.getStockLists();
-      setStockLists(data);
+      setMyStockLists(data);
     } catch (err) {
       setError("Error fetching stock lists");
+      console.error("Error:", err);
+    }
+  };
+
+  const fetchPublicStockLists = async () => {
+    try {
+      const data = await api.getPublicStockLists();
+      setPublicStockLists(data);
+    } catch (err) {
+      setError("Error fetching public stock lists");
+      console.error("Error:", err);
+    }
+  };
+
+  const fetchSharedStockLists = async () => {
+    try {
+      const data = await api.getSharedStockLists();
+      setSharedStockLists(data);
+    } catch (err) {
+      setError("Error fetching shared stock lists");
       console.error("Error:", err);
     }
   };
@@ -49,7 +73,7 @@ const DashboardPage = () => {
   const handleCreateStockList = async (name, visibility) => {
     try {
       const newStockList = await api.createStockList(name, visibility);
-      setStockLists([...stockLists, newStockList]);
+      setMyStockLists([...myStockLists, newStockList]);
     } catch (err) {
       setError("Error creating stock list");
       console.error("Error:", err);
@@ -77,7 +101,7 @@ const DashboardPage = () => {
 
     try {
       await api.deleteStockList(listId);
-      setStockLists(stockLists.filter((l) => l.listid !== listId));
+      setMyStockLists(myStockLists.filter((l) => l.listid !== listId));
     } catch (err) {
       setError("Error deleting stock list");
       console.error("Error:", err);
@@ -147,8 +171,8 @@ const DashboardPage = () => {
         )}
       </div>
 
-      {/* Stock Lists Section */}
-      <div>
+      {/* My Stock Lists Section */}
+      <div className="mb-12">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">My Stock Lists</h2>
           <button
@@ -161,7 +185,7 @@ const DashboardPage = () => {
 
         {/* Stock Lists Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {stockLists.map((list) => (
+          {myStockLists.map((list) => (
             <div
               key={list.listid}
               className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
@@ -187,9 +211,65 @@ const DashboardPage = () => {
           ))}
         </div>
 
-        {stockLists.length === 0 && (
+        {myStockLists.length === 0 && (
           <div className="text-center text-gray-500 mt-8">
             No stock lists yet. Create your first stock list above!
+          </div>
+        )}
+      </div>
+
+      {/* Shared Stock Lists Section */}
+      <div className="mb-12">
+        <h2 className="text-2xl font-bold mb-6">Shared Stock Lists</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sharedStockLists.map((list) => (
+            <div
+              key={list.listid}
+              className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => navigate(`/stocklist/${list.listid}`)}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-semibold">{list.name}</h3>
+              </div>
+              <div className="text-gray-600">
+                <p>Owner: {list.owner_name}</p>
+                <p>Items: {list.item_count || 0}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {sharedStockLists.length === 0 && (
+          <div className="text-center text-gray-500 mt-8">
+            No shared stock lists available.
+          </div>
+        )}
+      </div>
+
+      {/* Public Stock Lists Section */}
+      <div className="mb-12">
+        <h2 className="text-2xl font-bold mb-6">Public Stock Lists</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {publicStockLists.map((list) => (
+            <div
+              key={list.listid}
+              className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => navigate(`/stocklist/${list.listid}`)}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-semibold">{list.name}</h3>
+              </div>
+              <div className="text-gray-600">
+                <p>Owner: {list.owner_name}</p>
+                <p>Items: {list.item_count || 0}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {publicStockLists.length === 0 && (
+          <div className="text-center text-gray-500 mt-8">
+            No public stock lists available.
           </div>
         )}
       </div>

@@ -283,6 +283,28 @@ const api = {
 
     return response.json();
   },
+
+  // Get public stock lists
+  getPublicStockLists: async () => {
+    const response = await fetch(`${API_BASE_URL}/stocklist/public`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch public stock lists");
+    }
+    return response.json();
+  },
+
+  // Get shared stock lists from friends
+  getSharedStockLists: async () => {
+    const response = await fetch(`${API_BASE_URL}/stocklist/shared`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch shared stock lists");
+    }
+    return response.json();
+  },
 };
 
 export default api;

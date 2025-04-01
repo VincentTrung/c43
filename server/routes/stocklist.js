@@ -86,4 +86,57 @@ router.delete("/:listId", async (req, res) => {
   }
 });
 
+// Get public stock lists
+router.get("/public", async (req, res) => {
+  try {
+    const userId = req.session.user.userid;
+
+    // Get public lists that are not owned by the current user
+    const result = await pool.query(
+      `SELECT sl.*, u.username as owner_name,
+              (SELECT COUNT(*) FROM stocklistitem WHERE listid = sl.listid) as item_count
+       FROM stocklist sl
+       JOIN users u ON sl.userid = u.userid
+       WHERE sl.visibility = 'public'
+       AND sl.userid != $1
+       ORDER BY sl.name`,
+      [userId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching public stock lists:", error);
+    res.status(500).json({ message: "Error fetching public stock lists" });
+  }
+});
+
+// Get shared stock lists from friends
+router.get("/shared", async (req, res) => {
+  try {
+    const userId = req.session.user.userid;
+
+    // Get shared lists from friends
+    const result = await pool.query(
+      `SELECT sl.*, u.username as owner_name,
+              (SELECT COUNT(*) FROM stocklistitem WHERE listid = sl.listid) as item_count
+       FROM stocklist sl
+       JOIN users u ON sl.userid = u.userid
+       JOIN sharedstocklist ssl ON sl.listid = ssl.listid
+       JOIN friend f ON (
+         (f.user1_id = $1 AND f.user2_id = sl.userid) OR
+         (f.user2_id = $1 AND f.user1_id = sl.userid)
+       )
+       WHERE ssl.shared_with_userid = $1
+       AND sl.visibility = 'shared'
+       ORDER BY sl.name`,
+      [userId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching shared stock lists:", error);
+    res.status(500).json({ message: "Error fetching shared stock lists" });
+  }
+});
+
 module.exports = router;
