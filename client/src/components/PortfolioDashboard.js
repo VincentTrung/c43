@@ -107,7 +107,12 @@ const PortfolioDashboard = () => {
             </div>
             <div className="text-gray-600">
               <p>
-                Created: {new Date(portfolio.created_at).toLocaleDateString()}
+                Cash Balance: $
+                {parseFloat(portfolio.cash_balance || 0).toFixed(2)}
+              </p>
+              <p>
+                Total Value: $
+                {parseFloat(portfolio.total_value || 0).toFixed(2)}
               </p>
             </div>
           </div>
