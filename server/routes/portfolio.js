@@ -561,4 +561,139 @@ router.get("/stock/:symbol", async (req, res) => {
   }
 });
 
+// Create a new transaction
+router.post("/:portfolioId/transactions", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { portfolioId } = req.params;
+    const { type, amount, description, sourcePortfolioId } = req.body;
+    const userId = req.session.user.userid;
+
+    // Validate transaction type
+    if (!["deposit", "withdrawal", "transfer"].includes(type)) {
+      return res.status(400).json({ message: "Invalid transaction type" });
+    }
+
+    // Validate amount
+    if (amount <= 0) {
+      return res.status(400).json({ message: "Amount must be greater than 0" });
+    }
+
+    await client.query("BEGIN");
+
+    // Verify portfolio ownership
+    const portfolioResult = await client.query(
+      "SELECT * FROM portfolio WHERE portfolioid = $1 AND userid = $2",
+      [portfolioId, userId]
+    );
+
+    if (portfolioResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Portfolio not found" });
+    }
+
+    // For transfers, verify source portfolio ownership
+    if (type === "transfer") {
+      if (!sourcePortfolioId) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ message: "Source portfolio ID is required for transfers" });
+      }
+
+      const sourcePortfolioResult = await client.query(
+        "SELECT * FROM portfolio WHERE portfolioid = $1 AND userid = $2",
+        [sourcePortfolioId, userId]
+      );
+
+      if (sourcePortfolioResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "Source portfolio not found" });
+      }
+
+      // Check if source portfolio has sufficient balance
+      const sourceBalanceResult = await client.query(
+        "SELECT cash_balance FROM portfolio WHERE portfolioid = $1",
+        [sourcePortfolioId]
+      );
+
+      if (sourceBalanceResult.rows[0].cash_balance < amount) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ message: "Insufficient balance in source portfolio" });
+      }
+
+      // Deduct from source portfolio
+      await client.query(
+        "UPDATE portfolio SET cash_balance = cash_balance - $1 WHERE portfolioid = $2",
+        [amount, sourcePortfolioId]
+      );
+
+      // Create transaction for source portfolio
+      await client.query(
+        `INSERT INTO portfoliotransaction 
+        (portfolioid, type, amount, source_portfolio_id, destination_portfolio_id) 
+        VALUES ($1, $2, $3, $4, $5)`,
+        [
+          sourcePortfolioId,
+          "WITHDRAWAL",
+          amount,
+          sourcePortfolioId,
+          portfolioId,
+        ]
+      );
+    }
+
+    // Update portfolio balance
+    if (type === "deposit" || type === "transfer") {
+      await client.query(
+        "UPDATE portfolio SET cash_balance = cash_balance + $1 WHERE portfolioid = $2",
+        [amount, portfolioId]
+      );
+    } else if (type === "withdrawal") {
+      // Check if portfolio has sufficient balance for withdrawal
+      const balanceResult = await client.query(
+        "SELECT cash_balance FROM portfolio WHERE portfolioid = $1",
+        [portfolioId]
+      );
+
+      if (balanceResult.rows[0].cash_balance < amount) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "Insufficient balance" });
+      }
+
+      await client.query(
+        "UPDATE portfolio SET cash_balance = cash_balance - $1 WHERE portfolioid = $2",
+        [amount, portfolioId]
+      );
+    }
+
+    // Create transaction record
+    const transactionResult = await client.query(
+      `INSERT INTO portfoliotransaction 
+      (portfolioid, type, amount, source_portfolio_id, destination_portfolio_id) 
+      VALUES ($1, $2, $3, $4, $5) 
+      RETURNING *`,
+      [
+        portfolioId,
+        type === "transfer" ? "DEPOSIT" : type.toUpperCase(),
+        amount,
+        sourcePortfolioId,
+        portfolioId,
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    res.json(transactionResult.rows[0]);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error creating transaction:", error);
+    res.status(500).json({ message: "Error creating transaction" });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

@@ -402,6 +402,30 @@ const api = {
 
     return response.json();
   },
+
+  // Create a portfolio transaction (deposit, withdrawal, or transfer)
+  createPortfolioTransaction: async (portfolioId, transactionData) => {
+    const response = await fetch(
+      `${API_BASE_URL}/portfolio/${portfolioId}/transactions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(transactionData),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(
+        error.message || "Failed to create portfolio transaction"
+      );
+    }
+
+    return response.json();
+  },
 };
 
 export default api;

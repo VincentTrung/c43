@@ -136,8 +136,10 @@ CREATE TABLE StockTransaction (
 CREATE TABLE PortfolioTransaction (
     transactionid SERIAL PRIMARY KEY,
     portfolioid INTEGER REFERENCES Portfolio(portfolioid),
-    type VARCHAR(10) CHECK (type IN ('DEPOSIT', 'WITHDRAWAL')),
+    type VARCHAR(10) CHECK (type IN ('DEPOSIT', 'WITHDRAWAL'. 'TRANSFER')),
     amount DECIMAL(15, 2) NOT NULL,
+    source_portfolio_id INTEGER REFERENCES portfolio(portfolioid),
+    destination_portfolio_id INTEGER REFERENCES portfolio(portfolioid),
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

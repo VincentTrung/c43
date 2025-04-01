@@ -3,6 +3,26 @@ import { useParams } from "react-router-dom";
 import api from "../services/api";
 import StockInfo from "./StockInfo";
 import ErrorModal from "./ErrorModal";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  MenuItem,
+} from "@mui/material";
+import {
+  Box,
+  Typography,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  Chip,
+} from "@mui/material";
 
 const PortfolioPage = () => {
   // Get portfolio ID from URL parameters
@@ -26,6 +46,17 @@ const PortfolioPage = () => {
   const [selectedStock, setSelectedStock] = useState(null);
   const [isStockInfoOpen, setIsStockInfoOpen] = useState(false);
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+
+  // Transfer state
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferAmount, setTransferAmount] = useState("");
+  const [sourcePortfolioId, setSourcePortfolioId] = useState("");
+  const [transferError, setTransferError] = useState("");
+
+  // Add these state variables after the other state declarations
+  const [portfolios, setPortfolios] = useState([]);
+  const [depositDialogOpen, setDepositDialogOpen] = useState(false);
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
   // Fetch portfolio data and convert string values to numbers
   const fetchPortfolio = useCallback(async () => {
@@ -68,11 +99,27 @@ const PortfolioPage = () => {
     }
   }, [portfolioId]);
 
+  // Update the fetchPortfolios function
+  const fetchPortfolios = useCallback(async () => {
+    try {
+      const data = await api.getPortfolios();
+      const processedData = data.map((portfolio) => ({
+        ...portfolio,
+        cash_balance: parseFloat(portfolio.cash_balance) || 0,
+        total_value: parseFloat(portfolio.total_value) || 0,
+      }));
+      setPortfolios(processedData);
+    } catch (err) {
+      console.error("Error fetching portfolios:", err);
+    }
+  }, []);
+
   // Load portfolio and transaction data on component mount
   useEffect(() => {
     fetchPortfolio();
     fetchTransactions();
-  }, [fetchPortfolio, fetchTransactions]);
+    fetchPortfolios();
+  }, [fetchPortfolio, fetchTransactions, fetchPortfolios]);
 
   // Handle cash deposit
   const handleDeposit = async (e) => {
@@ -140,6 +187,38 @@ const PortfolioPage = () => {
     }
   };
 
+  // Handle transfer
+  const handleTransfer = async () => {
+    try {
+      setTransferError("");
+      if (!transferAmount || !sourcePortfolioId) {
+        setTransferError("Please fill in all fields");
+        return;
+      }
+
+      const amount = parseFloat(transferAmount);
+      if (isNaN(amount) || amount <= 0) {
+        setTransferError("Please enter a valid amount");
+        return;
+      }
+
+      await api.createPortfolioTransaction(portfolio.portfolioid, {
+        type: "transfer",
+        amount: amount,
+        sourcePortfolioId: sourcePortfolioId,
+      });
+
+      // Refresh both portfolio and portfolios data
+      await Promise.all([fetchPortfolio(), fetchPortfolios()]);
+
+      setTransferDialogOpen(false);
+      setTransferAmount("");
+      setSourcePortfolioId("");
+    } catch (error) {
+      setTransferError(error.message);
+    }
+  };
+
   // Show loading state
   if (loading) return <div>Loading...</div>;
   if (!portfolio) return <div>Portfolio not found</div>;
@@ -158,48 +237,29 @@ const PortfolioPage = () => {
         </div>
 
         {/* Deposit Form */}
-        <form onSubmit={handleDeposit} className="mb-4">
-          <div className="flex gap-4">
-            <input
-              type="number"
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
-              placeholder="Amount to deposit"
-              className="flex-1 p-2 border rounded"
-              required
-              min="0"
-              step="0.01"
-            />
-            <button
-              type="submit"
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-            >
-              Deposit
-            </button>
-          </div>
-        </form>
-
-        {/* Withdraw Form */}
-        <form onSubmit={handleWithdraw}>
-          <div className="flex gap-4">
-            <input
-              type="number"
-              value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-              placeholder="Amount to withdraw"
-              className="flex-1 p-2 border rounded"
-              required
-              min="0"
-              step="0.01"
-            />
-            <button
-              type="submit"
-              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-            >
-              Withdraw
-            </button>
-          </div>
-        </form>
+        <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => setDepositDialogOpen(true)}
+          >
+            Deposit
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => setWithdrawDialogOpen(true)}
+          >
+            Withdraw
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={() => setTransferDialogOpen(true)}
+          >
+            Transfer
+          </Button>
+        </Box>
       </div>
 
       {/* Stock Holdings Section */}
@@ -420,6 +480,124 @@ const PortfolioPage = () => {
         onClose={() => setIsErrorModalOpen(false)}
         error={error}
       />
+
+      {/* Transfer Dialog */}
+      <Dialog
+        open={transferDialogOpen}
+        onClose={() => setTransferDialogOpen(false)}
+      >
+        <DialogTitle>Transfer Between Portfolios</DialogTitle>
+        <DialogContent>
+          <TextField
+            select
+            fullWidth
+            label="Source Portfolio"
+            value={sourcePortfolioId}
+            onChange={(e) => setSourcePortfolioId(e.target.value)}
+            margin="normal"
+            error={!!transferError}
+            helperText={transferError}
+          >
+            {portfolios
+              .filter((p) => p.portfolioid !== portfolio.portfolioid)
+              .map((p) => (
+                <MenuItem key={p.portfolioid} value={p.portfolioid}>
+                  {p.name} (Balance: ${p.cash_balance.toFixed(2)})
+                </MenuItem>
+              ))}
+          </TextField>
+          <TextField
+            fullWidth
+            label="Amount"
+            type="number"
+            value={transferAmount}
+            onChange={(e) => setTransferAmount(e.target.value)}
+            margin="normal"
+            error={!!transferError}
+            helperText={transferError}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTransferDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleTransfer} variant="contained" color="primary">
+            Transfer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Deposit Dialog */}
+      <Dialog
+        open={depositDialogOpen}
+        onClose={() => setDepositDialogOpen(false)}
+      >
+        <DialogTitle>Deposit Cash</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Amount"
+            type="number"
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+            margin="normal"
+            error={!!error}
+            helperText={error}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDepositDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={async () => {
+              try {
+                await handleDeposit();
+                setDepositDialogOpen(false);
+              } catch (err) {
+                setError(err.message);
+              }
+            }}
+            variant="contained"
+            color="primary"
+          >
+            Deposit
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Withdrawal Dialog */}
+      <Dialog
+        open={withdrawDialogOpen}
+        onClose={() => setWithdrawDialogOpen(false)}
+      >
+        <DialogTitle>Withdraw Cash</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Amount"
+            type="number"
+            value={withdrawAmount}
+            onChange={(e) => setWithdrawAmount(e.target.value)}
+            margin="normal"
+            error={!!error}
+            helperText={error}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWithdrawDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={async () => {
+              try {
+                await handleWithdraw();
+                setWithdrawDialogOpen(false);
+              } catch (err) {
+                setError(err.message);
+              }
+            }}
+            variant="contained"
+            color="error"
+          >
+            Withdraw
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };
