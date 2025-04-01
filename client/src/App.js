@@ -7,9 +7,9 @@ import {
 } from "react-router-dom";
 import Login from "./components/Login";
 import Register from "./components/Register";
-import PortfolioDashboard from "./components/PortfolioDashboard";
 import PortfolioPage from "./components/PortfolioPage";
 import PrivateRoute from "./components/PrivateRoute";
+import DashboardPage from "./components/DashboardPage";
 
 function App() {
   return (
@@ -22,7 +22,7 @@ function App() {
             path="/dashboard"
             element={
               <PrivateRoute>
-                <PortfolioDashboard />
+                <DashboardPage />
               </PrivateRoute>
             }
           />
