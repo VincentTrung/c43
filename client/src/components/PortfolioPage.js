@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
-import StockInfo from "./StockInfo";
 import ErrorModal from "./ErrorModal";
 import {
   Dialog,
@@ -23,10 +22,12 @@ import {
   TableCell,
   Chip,
 } from "@mui/material";
+import AddStockData from "./AddStockData";
 
 const PortfolioPage = () => {
   // Get portfolio ID from URL parameters
   const { portfolioId } = useParams();
+  const navigate = useNavigate();
 
   // State management
   const [portfolio, setPortfolio] = useState(null);
@@ -43,8 +44,6 @@ const PortfolioPage = () => {
   const [sellQuantity, setSellQuantity] = useState("");
 
   // Modal state
-  const [selectedStock, setSelectedStock] = useState(null);
-  const [isStockInfoOpen, setIsStockInfoOpen] = useState(false);
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
 
   // Transfer state
@@ -57,6 +56,9 @@ const PortfolioPage = () => {
   const [portfolios, setPortfolios] = useState([]);
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+
+  // Add Stock Data state
+  const [isAddStockDataOpen, setIsAddStockDataOpen] = useState(false);
 
   // Fetch portfolio data and convert string values to numbers
   const fetchPortfolio = useCallback(async () => {
@@ -234,7 +236,16 @@ const PortfolioPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">{portfolio.name}</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">{portfolio.name}</h1>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => setIsAddStockDataOpen(true)}
+        >
+          Add Daily Stock Data
+        </Button>
+      </div>
 
       {/* Cash Account Section */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
@@ -307,10 +318,7 @@ const PortfolioPage = () => {
                   </td>
                   <td className="px-4 py-2">
                     <button
-                      onClick={() => {
-                        setSelectedStock(holding.symbol);
-                        setIsStockInfoOpen(true);
-                      }}
+                      onClick={() => navigate(`/stock/${holding.symbol}`)}
                       className="text-blue-500 hover:text-blue-700"
                     >
                       View Details
@@ -385,15 +393,6 @@ const PortfolioPage = () => {
           </form>
         </div>
       </div>
-
-      {/* Stock Information Modal */}
-      {selectedStock && (
-        <StockInfo
-          symbol={selectedStock}
-          isOpen={isStockInfoOpen}
-          onClose={() => setIsStockInfoOpen(false)}
-        />
-      )}
 
       {/* Stock Trading History Section */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
@@ -621,6 +620,16 @@ const PortfolioPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Add Stock Data Dialog */}
+      <AddStockData
+        isOpen={isAddStockDataOpen}
+        onClose={() => setIsAddStockDataOpen(false)}
+        onSuccess={() => {
+          fetchPortfolio();
+          fetchTransactions();
+        }}
+      />
     </div>
   );
 };

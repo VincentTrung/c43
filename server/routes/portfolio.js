@@ -35,13 +35,18 @@ router.get("/", async (req, res) => {
     console.log("Fetching portfolios for user:", userId);
 
     const result = await pool.query(
-      `SELECT p.portfolioid, p.userid, p.name, p.cash_balance,
-              COALESCE(SUM(sh.quantity * COALESCE(sd.close_price, 0)), 0) as total_value 
-       FROM portfolio p 
-       LEFT JOIN stockholding sh ON p.portfolioid = sh.portfolioid 
-       LEFT JOIN stockdata sd ON sh.symbol = sd.symbol 
-       WHERE p.userid = $1 
-       GROUP BY p.portfolioid, p.userid, p.name, p.cash_balance`,
+      `WITH latest_prices AS (
+        SELECT DISTINCT ON (symbol) symbol, close_price
+        FROM stockdata
+        ORDER BY symbol, date DESC
+      )
+      SELECT p.portfolioid, p.userid, p.name, p.cash_balance,
+             COALESCE(p.cash_balance + SUM(sh.quantity * COALESCE(lp.close_price, 0)), p.cash_balance) as total_value 
+      FROM portfolio p 
+      LEFT JOIN stockholding sh ON p.portfolioid = sh.portfolioid 
+      LEFT JOIN latest_prices lp ON sh.symbol = lp.symbol 
+      WHERE p.userid = $1 
+      GROUP BY p.portfolioid, p.userid, p.name, p.cash_balance`,
       [userId]
     );
 

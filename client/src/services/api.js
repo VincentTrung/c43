@@ -426,6 +426,51 @@ const api = {
 
     return response.json();
   },
+
+  // Stock data endpoints
+  addStockData: async (stockData) => {
+    const response = await fetch(`${API_BASE_URL}/stockdata`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(stockData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to add stock data");
+    }
+
+    return response.json();
+  },
+
+  getStockData: async (symbol) => {
+    const response = await fetch(`${API_BASE_URL}/stockdata/${symbol}`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch stock data");
+    }
+
+    return response.json();
+  },
+
+  getAllStockData: async () => {
+    const response = await fetch(`${API_BASE_URL}/stockdata`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch stock data");
+    }
+
+    return response.json();
+  },
 };
 
 export default api;

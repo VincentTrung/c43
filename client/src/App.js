@@ -10,6 +10,7 @@ import Register from "./components/Register";
 import PortfolioPage from "./components/PortfolioPage";
 import PrivateRoute from "./components/PrivateRoute";
 import DashboardPage from "./components/DashboardPage";
+import StockDetailsPage from "./components/StockDetailsPage";
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route path="/stock/:symbol" element={<StockDetailsPage />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </div>
