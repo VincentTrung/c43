@@ -51,7 +51,7 @@ const StocklistPage = () => {
       const currentUser = await api.checkAuth();
       console.log("Stock List Data:", data);
       console.log("Current User:", currentUser);
-      console.log("Is Owner:", data.userid === currentUser.userid);
+      console.log("Is Owner:", data.userid === currentUser.user.userid);
       setIsOwner(data.userid === currentUser.user.userid);
     } catch (err) {
       setError(err.message || "Error fetching stock list");
@@ -63,6 +63,7 @@ const StocklistPage = () => {
 
   useEffect(() => {
     fetchStockList();
+    fetchFriends();
   }, [fetchStockList]);
 
   const fetchFriends = async () => {
@@ -77,11 +78,21 @@ const StocklistPage = () => {
   const handleAddStock = async () => {
     try {
       setError(""); // Clear any previous errors
-      await api.addStockToList(
-        listId,
-        newStock.symbol,
-        parseInt(newStock.quantity)
-      );
+
+      // Validate quantity
+      const quantity = parseInt(newStock.quantity);
+      if (isNaN(quantity) || quantity <= 0) {
+        setError("Quantity must be a positive number");
+        return;
+      }
+
+      // Validate symbol
+      if (!newStock.symbol.trim()) {
+        setError("Stock symbol is required");
+        return;
+      }
+
+      await api.addStockToList(listId, newStock.symbol, quantity);
       setNewStock({ symbol: "", quantity: "" });
       setIsAddStockOpen(false);
       fetchStockList();
@@ -242,6 +253,7 @@ const StocklistPage = () => {
             onChange={(e) =>
               setNewStock({ ...newStock, symbol: e.target.value.toUpperCase() })
             }
+            inputProps={{ minLength: 1 }}
           />
           <TextField
             margin="dense"
@@ -249,9 +261,13 @@ const StocklistPage = () => {
             type="number"
             fullWidth
             value={newStock.quantity}
-            onChange={(e) =>
-              setNewStock({ ...newStock, quantity: e.target.value })
-            }
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "" || parseInt(value) > 0) {
+                setNewStock({ ...newStock, quantity: value });
+              }
+            }}
+            inputProps={{ min: 1 }}
           />
         </DialogContent>
         <DialogActions>

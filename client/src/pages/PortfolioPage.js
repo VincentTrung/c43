@@ -10,18 +10,11 @@ import {
   Button,
   TextField,
   MenuItem,
-} from "@mui/material";
-import {
   Box,
   Typography,
-  TableContainer,
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableCell,
-  Chip,
+  IconButton,
 } from "@mui/material";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import AddStockData from "./AddStockData";
 
 const PortfolioPage = () => {
@@ -317,12 +310,12 @@ const PortfolioPage = () => {
                     ${(holding.quantity * holding.current_price).toFixed(2)}
                   </td>
                   <td className="px-4 py-2">
-                    <button
+                    <IconButton
                       onClick={() => navigate(`/stock/${holding.symbol}`)}
-                      className="text-blue-500 hover:text-blue-700"
+                      color="primary"
                     >
-                      View Details
-                    </button>
+                      <VisibilityIcon />
+                    </IconButton>
                   </td>
                 </tr>
               ))}

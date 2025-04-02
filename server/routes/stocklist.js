@@ -54,29 +54,51 @@ router.get("/", async (req, res) => {
 
 // Delete a stock list
 router.delete("/:listId", async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { listId } = req.params;
-    const userId = req.session.user.userid;
+    await client.query("BEGIN");
 
-    // Verify list belongs to user
-    const listResult = await pool.query(
-      "SELECT * FROM stocklist WHERE listid = $1 AND userid = $2",
-      [listId, userId]
+    // First verify ownership
+    const ownershipResult = await client.query(
+      "SELECT userid FROM stocklist WHERE listid = $1",
+      [req.params.listId]
     );
 
-    if (listResult.rows.length === 0) {
+    if (ownershipResult.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ message: "Stock list not found" });
     }
 
-    // Delete the list (cascade will handle related records)
-    await pool.query("DELETE FROM stocklist WHERE listid = $1", [listId]);
+    if (ownershipResult.rows[0].userid !== req.session.user.userid) {
+      await client.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({ message: "Not authorized to delete this stock list" });
+    }
 
+    // First delete all shared stock list entries
+    await client.query("DELETE FROM sharedstocklist WHERE listid = $1", [
+      req.params.listId,
+    ]);
+
+    // Then delete all items in the stock list
+    await client.query("DELETE FROM stocklistitem WHERE listid = $1", [
+      req.params.listId,
+    ]);
+
+    // Finally delete the stock list
+    await client.query("DELETE FROM stocklist WHERE listid = $1", [
+      req.params.listId,
+    ]);
+
+    await client.query("COMMIT");
     res.json({ message: "Stock list deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting stock list:", error);
-    res
-      .status(500)
-      .json({ message: "Error deleting stock list", error: error.message });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error deleting stock list:", err);
+    res.status(500).json({ message: "Error deleting stock list" });
+  } finally {
+    client.release();
   }
 });
 
