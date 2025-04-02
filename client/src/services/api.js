@@ -538,6 +538,62 @@ const api = {
 
     return response.json();
   },
+
+  // Review API
+  getReviews: async (listId) => {
+    const response = await fetch(`${API_BASE_URL}/review/list/${listId}`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Error fetching reviews");
+    }
+    return response.json();
+  },
+
+  createReview: async (listId, content) => {
+    const response = await fetch(`${API_BASE_URL}/review`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ listId, content }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Error creating review");
+    }
+    return response.json();
+  },
+
+  updateReview: async (reviewId, content) => {
+    const response = await fetch(`${API_BASE_URL}/review/${reviewId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ content }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Error updating review");
+    }
+    return response.json();
+  },
+
+  deleteReview: async (reviewId) => {
+    const response = await fetch(`${API_BASE_URL}/review/${reviewId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Error deleting review");
+    }
+    return response.json();
+  },
 };
 
 export default api;

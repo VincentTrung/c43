@@ -23,11 +23,13 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Divider,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import ShareIcon from "@mui/icons-material/Share";
+import EditIcon from "@mui/icons-material/Edit";
 
 const StocklistPage = () => {
   const { listId } = useParams();
@@ -35,12 +37,18 @@ const StocklistPage = () => {
   const [stockList, setStockList] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
   const [isAddStockOpen, setIsAddStockOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [newStock, setNewStock] = useState({ symbol: "", quantity: "" });
   const [friends, setFriends] = useState([]);
   const [selectedFriend, setSelectedFriend] = useState("");
   const [isOwner, setIsOwner] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  const [reviewContent, setReviewContent] = useState("");
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
+  const [reviewError, setReviewError] = useState("");
 
   const fetchStockList = useCallback(async () => {
     try {
@@ -61,19 +69,39 @@ const StocklistPage = () => {
     }
   }, [listId]);
 
-  useEffect(() => {
-    fetchStockList();
-    fetchFriends();
-  }, [fetchStockList]);
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const userData = await api.checkAuth();
+      setCurrentUser(userData);
+    } catch (err) {
+      console.error("Error fetching current user:", err);
+    }
+  }, []);
 
-  const fetchFriends = async () => {
+  const fetchFriends = useCallback(async () => {
     try {
       const friendsData = await api.getFriends();
       setFriends(friendsData);
     } catch (err) {
       console.error("Error fetching friends:", err);
     }
-  };
+  }, []);
+
+  const fetchReviews = useCallback(async () => {
+    try {
+      const data = await api.getReviews(listId);
+      setReviews(data);
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+    }
+  }, [listId]);
+
+  useEffect(() => {
+    fetchStockList();
+    fetchFriends();
+    fetchReviews();
+    fetchCurrentUser();
+  }, [fetchStockList, fetchFriends, fetchReviews, fetchCurrentUser]);
 
   const handleAddStock = async () => {
     try {
@@ -140,6 +168,44 @@ const StocklistPage = () => {
 
   const handleCloseError = () => {
     setError("");
+  };
+
+  const handleReviewSubmit = async () => {
+    try {
+      setReviewError("");
+
+      // Validate review content
+      if (!reviewContent.trim()) {
+        setReviewError("Review content cannot be empty");
+        return;
+      }
+
+      if (reviewContent.length > 4000) {
+        setReviewError("Review cannot exceed 4000 characters");
+        return;
+      }
+
+      if (editingReview) {
+        await api.updateReview(editingReview.reviewid, reviewContent);
+      } else {
+        await api.createReview(listId, reviewContent);
+      }
+      setReviewContent("");
+      setIsReviewDialogOpen(false);
+      setEditingReview(null);
+      fetchReviews();
+    } catch (err) {
+      setReviewError(err.message);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId) => {
+    try {
+      await api.deleteReview(reviewId);
+      fetchReviews();
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   if (loading) {
@@ -311,6 +377,128 @@ const StocklistPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseError}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reviews Section */}
+      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Reviews</h2>
+          {stockList &&
+            currentUser &&
+            // Only show Write Review button if:
+            // 1. User is the owner
+            // 2. List is public
+            // 3. List is shared with the user
+            (stockList.userid === currentUser.userid ||
+              stockList.visibility === "public" ||
+              stockList.shared_with_userid === currentUser.userid) && (
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => {
+                  setEditingReview(null);
+                  setReviewContent("");
+                  setIsReviewDialogOpen(true);
+                }}
+              >
+                Write Review
+              </Button>
+            )}
+        </div>
+
+        {reviews.length === 0 ? (
+          <p className="text-gray-500">No reviews yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {reviews.map((review) => (
+              <div key={review.reviewid} className="border-b pb-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-semibold">{review.username}</p>
+                    <p className="text-sm text-gray-500">
+                      {new Date(review.created_at).toLocaleDateString()}
+                      {review.edited_at && " (edited)"}
+                    </p>
+                  </div>
+                  {currentUser &&
+                    (review.userid === currentUser.userid ||
+                      stockList?.userid === currentUser.userid) && (
+                      <div className="flex space-x-2">
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            setEditingReview(review);
+                            setReviewContent(review.content);
+                            setIsReviewDialogOpen(true);
+                          }}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteReview(review.reviewid)}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </div>
+                    )}
+                </div>
+                <p className="mt-2">{review.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Review Dialog */}
+      <Dialog
+        open={isReviewDialogOpen}
+        onClose={() => {
+          setIsReviewDialogOpen(false);
+          setEditingReview(null);
+          setReviewContent("");
+        }}
+      >
+        <DialogTitle>
+          {editingReview ? "Edit Review" : "Write Review"}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Review"
+            type="text"
+            fullWidth
+            multiline
+            rows={4}
+            value={reviewContent}
+            onChange={(e) => setReviewContent(e.target.value)}
+            error={!!reviewError}
+            helperText={reviewError}
+            inputProps={{ maxLength: 4000 }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+            {reviewContent.length}/4000 characters
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setIsReviewDialogOpen(false);
+              setEditingReview(null);
+              setReviewContent("");
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleReviewSubmit}
+            color="primary"
+            disabled={!reviewContent.trim() || reviewContent.length > 4000}
+          >
+            {editingReview ? "Update" : "Submit"}
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

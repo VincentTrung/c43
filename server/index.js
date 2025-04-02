@@ -8,6 +8,7 @@ const portfolioRoutes = require("./routes/portfolio");
 const stocklistRoutes = require("./routes/stocklist");
 const friendsRouter = require("./routes/friends");
 const stockdataRoutes = require("./routes/stockdata");
+const reviewRouter = require("./routes/review");
 const pool = require("./db");
 
 const app = express();
@@ -44,6 +45,7 @@ app.use("/api/portfolio", authenticateSession, portfolioRoutes);
 app.use("/api/stocklist", authenticateSession, stocklistRoutes);
 app.use("/api/friends", friendsRouter);
 app.use("/api/stockdata", stockdataRoutes);
+app.use("/api/review", authenticateSession, reviewRouter);
 
 // Start server
 app.listen(port, () => {

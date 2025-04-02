@@ -73,6 +73,17 @@ CREATE TABLE StockList (
     visibility VARCHAR(10) NOT NULL CHECK (visibility IN ('private', 'shared', 'public'))
 );
 
+-- Review table
+CREATE TABLE Review (
+    reviewid SERIAL PRIMARY KEY,
+    userid INTEGER REFERENCES Users(userid),
+    listid INTEGER REFERENCES StockList(listid),
+    content TEXT NOT NULL CHECK (length(content) <= 4000),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    edited_at TIMESTAMP,
+    UNIQUE (userid, listid) -- One review per user per list
+);
+
 -- StockList items
 CREATE TABLE StockListItem (
     itemid SERIAL PRIMARY KEY,
@@ -94,17 +105,6 @@ CREATE TABLE FriendRequest (
         (status = 'rejected' AND rejected_time IS NOT NULL) OR
         (status <> 'rejected' AND rejected_time IS NULL)
     )
-);
-
--- Review table
-CREATE TABLE Review (
-    reviewid SERIAL PRIMARY KEY,
-    userid INTEGER REFERENCES Users(userid),
-    listid INTEGER REFERENCES StockList(listid),
-    content TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    edited_at TIMESTAMP,
-    UNIQUE (userid, listid) -- One review per user per list
 );
 
 -- Shared stock lists
