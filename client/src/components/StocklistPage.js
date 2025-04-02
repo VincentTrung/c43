@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import api from "../services/api";
 import {
   Container,
   Typography,
@@ -17,69 +18,111 @@ import {
   DialogActions,
   TextField,
   IconButton,
-  Tooltip,
   Box,
-  Chip,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import api from "../services/api";
+import ShareIcon from "@mui/icons-material/Share";
 
-const StockListPage = () => {
+const StocklistPage = () => {
   const { listId } = useParams();
   const navigate = useNavigate();
   const [stockList, setStockList] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
   const [isAddStockOpen, setIsAddStockOpen] = useState(false);
-  const [newStockSymbol, setNewStockSymbol] = useState("");
-  const [addStockError, setAddStockError] = useState("");
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [newStock, setNewStock] = useState({ symbol: "", quantity: "" });
+  const [friends, setFriends] = useState([]);
+  const [selectedFriend, setSelectedFriend] = useState("");
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     fetchStockList();
+    fetchFriends();
   }, [listId]);
 
   const fetchStockList = async () => {
     try {
       setLoading(true);
-      const response = await api.getStockList(listId);
-      setStockList(response);
-      setError(null);
+      const data = await api.getStockList(listId);
+      setStockList(data);
+      // Check if current user is the owner
+      const currentUser = await api.checkAuth();
+      console.log("Stock List Data:", data);
+      console.log("Current User:", currentUser);
+      console.log("Is Owner:", data.userid == currentUser.userid);
+      setIsOwner(data.userid === currentUser.user.userid);
     } catch (err) {
-      setError(err.message || "Error fetching stock list");
+      setError("Error fetching stock list");
+      console.error("Error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddStock = async () => {
+  const fetchFriends = async () => {
     try {
-      setAddStockError("");
-      await api.addStockToList(listId, newStockSymbol);
-      setIsAddStockOpen(false);
-      setNewStockSymbol("");
-      fetchStockList();
+      const friendsData = await api.getFriends();
+      setFriends(friendsData);
     } catch (err) {
-      setAddStockError(err.message || "Error adding stock to list");
+      console.error("Error fetching friends:", err);
     }
   };
 
-  const handleDeleteStock = async (symbol) => {
+  const handleAddStock = async () => {
+    try {
+      setError(""); // Clear any previous errors
+      await api.addStockToList(
+        listId,
+        newStock.symbol,
+        parseInt(newStock.quantity)
+      );
+      setNewStock({ symbol: "", quantity: "" });
+      setIsAddStockOpen(false);
+      fetchStockList();
+    } catch (err) {
+      setError(err.message || "Error adding stock to list");
+      console.error("Error:", err);
+    }
+  };
+
+  const handleShareList = async () => {
+    try {
+      await api.shareStockList(listId, selectedFriend);
+      setIsShareOpen(false);
+      setSelectedFriend("");
+      fetchStockList();
+    } catch (err) {
+      setError("Error sharing stock list");
+      console.error("Error:", err);
+    }
+  };
+
+  const handleRemoveStock = async (symbol) => {
     if (
-      window.confirm(
+      !window.confirm(
         "Are you sure you want to remove this stock from the list?"
       )
     ) {
-      try {
-        await api.removeStockFromList(listId, symbol);
-        fetchStockList();
-      } catch (err) {
-        setError(err.message || "Error removing stock from list");
-      }
+      return;
+    }
+
+    try {
+      await api.removeStockFromList(listId, symbol);
+      fetchStockList();
+    } catch (err) {
+      setError("Error removing stock from list");
+      console.error("Error:", err);
     }
   };
 
-  const handleViewStock = (symbol) => {
+  const handleViewStockDetails = (symbol) => {
     navigate(`/stock/${symbol}`);
   };
 
@@ -108,35 +151,39 @@ const StockListPage = () => {
   }
 
   return (
-    <Container>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 3,
-        }}
-      >
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 4 }}>
         <Box>
           <Typography variant="h4" component="h1">
             {stockList.name}
           </Typography>
           <Typography variant="subtitle1" color="text.secondary">
-            Created by {stockList.creator_name}
-            {stockList.is_owner && (
-              <Chip label="Owner" size="small" color="primary" sx={{ ml: 1 }} />
-            )}
+            Created by: {stockList.creator_name}
           </Typography>
         </Box>
-        {stockList.is_owner && (
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => setIsAddStockOpen(true)}
-          >
-            Add Stock
-          </Button>
-        )}
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+          <Typography variant="subtitle1" color="text.secondary">
+            Total Value: ${stockList.total_value.toFixed(2)}
+          </Typography>
+          {isOwner && (
+            <>
+              <Button
+                variant="contained"
+                startIcon={<ShareIcon />}
+                onClick={() => setIsShareOpen(true)}
+              >
+                Share List
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => setIsAddStockOpen(true)}
+              >
+                Add Stock
+              </Button>
+            </>
+          )}
+        </Box>
       </Box>
 
       <TableContainer component={Paper}>
@@ -145,36 +192,41 @@ const StockListPage = () => {
             <TableRow>
               <TableCell>Symbol</TableCell>
               <TableCell>Company Name</TableCell>
-              <TableCell>Current Price</TableCell>
-              <TableCell>Actions</TableCell>
+              <TableCell align="right">Quantity</TableCell>
+              <TableCell align="right">Current Price</TableCell>
+              <TableCell align="right">Total Value</TableCell>
+              {isOwner && <TableCell align="center">Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
-            {stockList.stocks.map((stock) => (
-              <TableRow key={stock.symbol}>
-                <TableCell>{stock.symbol}</TableCell>
-                <TableCell>{stock.company_name}</TableCell>
-                <TableCell>${stock.current_price.toFixed(2)}</TableCell>
-                <TableCell>
-                  <Tooltip title="View Details">
+            {stockList.items.map((item) => (
+              <TableRow key={item.symbol}>
+                <TableCell>{item.symbol}</TableCell>
+                <TableCell>{item.company_name}</TableCell>
+                <TableCell align="right">{item.quantity}</TableCell>
+                <TableCell align="right">
+                  ${Number(item.current_price || 0).toFixed(2)}
+                </TableCell>
+                <TableCell align="right">
+                  $
+                  {(Number(item.current_price || 0) * item.quantity).toFixed(2)}
+                </TableCell>
+                {isOwner && (
+                  <TableCell align="center">
                     <IconButton
-                      onClick={() => handleViewStock(stock.symbol)}
+                      onClick={() => handleViewStockDetails(item.symbol)}
                       color="primary"
                     >
                       <VisibilityIcon />
                     </IconButton>
-                  </Tooltip>
-                  {stockList.is_owner && (
-                    <Tooltip title="Remove from List">
-                      <IconButton
-                        onClick={() => handleDeleteStock(stock.symbol)}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </TableCell>
+                    <IconButton
+                      onClick={() => handleRemoveStock(item.symbol)}
+                      color="error"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
@@ -189,16 +241,52 @@ const StockListPage = () => {
             margin="dense"
             label="Stock Symbol"
             fullWidth
-            value={newStockSymbol}
-            onChange={(e) => setNewStockSymbol(e.target.value.toUpperCase())}
-            error={!!addStockError}
-            helperText={addStockError}
+            value={newStock.symbol}
+            onChange={(e) =>
+              setNewStock({ ...newStock, symbol: e.target.value.toUpperCase() })
+            }
+          />
+          <TextField
+            margin="dense"
+            label="Quantity"
+            type="number"
+            fullWidth
+            value={newStock.quantity}
+            onChange={(e) =>
+              setNewStock({ ...newStock, quantity: e.target.value })
+            }
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setIsAddStockOpen(false)}>Cancel</Button>
-          <Button onClick={handleAddStock} variant="contained" color="primary">
+          <Button onClick={handleAddStock} variant="contained">
             Add
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={isShareOpen} onClose={() => setIsShareOpen(false)}>
+        <DialogTitle>Share Stock List</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>Select Friend</InputLabel>
+            <Select
+              value={selectedFriend}
+              onChange={(e) => setSelectedFriend(e.target.value)}
+              label="Select Friend"
+            >
+              {friends.map((friend) => (
+                <MenuItem key={friend.userid} value={friend.userid}>
+                  {friend.username}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsShareOpen(false)}>Cancel</Button>
+          <Button onClick={handleShareList} variant="contained">
+            Share
           </Button>
         </DialogActions>
       </Dialog>
@@ -206,4 +294,4 @@ const StockListPage = () => {
   );
 };
 
-export default StockListPage;
+export default StocklistPage;

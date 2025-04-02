@@ -471,6 +471,73 @@ const api = {
 
     return response.json();
   },
+
+  // Stock list item functions
+  getStockList: async (listId) => {
+    const response = await fetch(`${API_BASE_URL}/stocklist/${listId}`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch stock list");
+    }
+
+    return response.json();
+  },
+
+  addStockToList: async (listId, symbol, quantity) => {
+    const response = await fetch(`${API_BASE_URL}/stocklist/${listId}/stocks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ symbol, quantity }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to add stock to list");
+    }
+
+    return response.json();
+  },
+
+  removeStockFromList: async (listId, symbol) => {
+    const response = await fetch(
+      `${API_BASE_URL}/stocklist/${listId}/stocks/${symbol}`,
+      {
+        method: "DELETE",
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to remove stock from list");
+    }
+
+    return response.json();
+  },
+
+  shareStockList: async (listId, friendId) => {
+    const response = await fetch(`${API_BASE_URL}/stocklist/${listId}/share`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ friendId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to share stock list");
+    }
+
+    return response.json();
+  },
 };
 
 export default api;

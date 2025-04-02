@@ -78,7 +78,8 @@ CREATE TABLE StockListItem (
     itemid SERIAL PRIMARY KEY,
     listid INTEGER REFERENCES StockList(listid),
     symbol VARCHAR(10) REFERENCES Stock(symbol), 
-    quantity INTEGER NOT NULL
+    quantity INTEGER NOT NULL,
+    UNIQUE (listid, symbol)
 );
 
 -- FriendRequest table (fixed syntax)

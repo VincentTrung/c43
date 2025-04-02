@@ -11,6 +11,7 @@ import PortfolioPage from "./components/PortfolioPage";
 import PrivateRoute from "./components/PrivateRoute";
 import DashboardPage from "./components/DashboardPage";
 import StockDetailsPage from "./components/StockDetailsPage";
+import StocklistPage from "./components/StocklistPage";
 
 function App() {
   return (
@@ -35,7 +36,22 @@ function App() {
               </PrivateRoute>
             }
           />
-          <Route path="/stock/:symbol" element={<StockDetailsPage />} />
+          <Route
+            path="/stock/:symbol"
+            element={
+              <PrivateRoute>
+                <StockDetailsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/stocklist/:listId"
+            element={
+              <PrivateRoute>
+                <StocklistPage />
+              </PrivateRoute>
+            }
+          />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </div>
