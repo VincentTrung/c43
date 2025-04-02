@@ -5,13 +5,13 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import Login from "./components/Login";
-import Register from "./components/Register";
-import PortfolioPage from "./components/PortfolioPage";
-import PrivateRoute from "./components/PrivateRoute";
-import DashboardPage from "./components/DashboardPage";
-import StockDetailsPage from "./components/StockDetailsPage";
-import StocklistPage from "./components/StocklistPage";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import PortfolioPage from "./pages/PortfolioPage";
+import PrivateRoute from "./pages/PrivateRoute";
+import DashboardPage from "./pages/DashboardPage";
+import StockDetailsPage from "./pages/StockDetailsPage";
+import StocklistPage from "./pages/StocklistPage";
 
 function App() {
   return (

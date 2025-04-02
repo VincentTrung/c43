@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
 import {
@@ -42,12 +42,7 @@ const StocklistPage = () => {
   const [selectedFriend, setSelectedFriend] = useState("");
   const [isOwner, setIsOwner] = useState(false);
 
-  useEffect(() => {
-    fetchStockList();
-    fetchFriends();
-  }, [listId]);
-
-  const fetchStockList = async () => {
+  const fetchStockList = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.getStockList(listId);
@@ -56,15 +51,19 @@ const StocklistPage = () => {
       const currentUser = await api.checkAuth();
       console.log("Stock List Data:", data);
       console.log("Current User:", currentUser);
-      console.log("Is Owner:", data.userid == currentUser.userid);
+      console.log("Is Owner:", data.userid === currentUser.userid);
       setIsOwner(data.userid === currentUser.user.userid);
     } catch (err) {
-      setError("Error fetching stock list");
+      setError(err.message || "Error fetching stock list");
       console.error("Error:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [listId]);
+
+  useEffect(() => {
+    fetchStockList();
+  }, [fetchStockList]);
 
   const fetchFriends = async () => {
     try {
@@ -94,12 +93,13 @@ const StocklistPage = () => {
 
   const handleShareList = async () => {
     try {
+      setError(""); // Clear any previous errors
       await api.shareStockList(listId, selectedFriend);
       setIsShareOpen(false);
       setSelectedFriend("");
       fetchStockList();
     } catch (err) {
-      setError("Error sharing stock list");
+      setError(err.message || "Error sharing stock list");
       console.error("Error:", err);
     }
   };
@@ -114,10 +114,11 @@ const StocklistPage = () => {
     }
 
     try {
+      setError(""); // Clear any previous errors
       await api.removeStockFromList(listId, symbol);
       fetchStockList();
     } catch (err) {
-      setError("Error removing stock from list");
+      setError(err.message || "Error removing stock from list");
       console.error("Error:", err);
     }
   };
@@ -126,18 +127,14 @@ const StocklistPage = () => {
     navigate(`/stock/${symbol}`);
   };
 
+  const handleCloseError = () => {
+    setError("");
+  };
+
   if (loading) {
     return (
       <Container>
         <Typography>Loading...</Typography>
-      </Container>
-    );
-  }
-
-  if (error) {
-    return (
-      <Container>
-        <Typography color="error">{error}</Typography>
       </Container>
     );
   }
@@ -288,6 +285,16 @@ const StocklistPage = () => {
           <Button onClick={handleShareList} variant="contained">
             Share
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!error} onClose={handleCloseError}>
+        <DialogTitle>Error</DialogTitle>
+        <DialogContent>
+          <Typography>{error}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseError}>Close</Button>
         </DialogActions>
       </Dialog>
     </Container>
