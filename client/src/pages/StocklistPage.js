@@ -384,27 +384,19 @@ const StocklistPage = () => {
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Reviews</h2>
-          {stockList &&
-            currentUser &&
-            // Only show Write Review button if:
-            // 1. User is the owner
-            // 2. List is public
-            // 3. List is shared with the user
-            (stockList.userid === currentUser.userid ||
-              stockList.visibility === "public" ||
-              stockList.shared_with_userid === currentUser.userid) && (
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => {
-                  setEditingReview(null);
-                  setReviewContent("");
-                  setIsReviewDialogOpen(true);
-                }}
-              >
-                Write Review
-              </Button>
-            )}
+          {stockList && currentUser && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => {
+                setEditingReview(null);
+                setReviewContent("");
+                setIsReviewDialogOpen(true);
+              }}
+            >
+              Write Review
+            </Button>
+          )}
         </div>
 
         {reviews.length === 0 ? (
@@ -422,19 +414,21 @@ const StocklistPage = () => {
                     </p>
                   </div>
                   {currentUser &&
-                    (review.userid === currentUser.userid ||
-                      stockList?.userid === currentUser.userid) && (
+                    (review.userid === currentUser.user.userid ||
+                      stockList?.userid === currentUser.user.userid) && (
                       <div className="flex space-x-2">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setEditingReview(review);
-                            setReviewContent(review.content);
-                            setIsReviewDialogOpen(true);
-                          }}
-                        >
-                          <EditIcon />
-                        </IconButton>
+                        {review.userid === currentUser.user.userid && (
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setEditingReview(review);
+                              setReviewContent(review.content);
+                              setIsReviewDialogOpen(true);
+                            }}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        )}
                         <IconButton
                           size="small"
                           onClick={() => handleDeleteReview(review.reviewid)}
