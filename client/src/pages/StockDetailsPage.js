@@ -15,6 +15,10 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Container,
+  Box,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   LineChart,
@@ -31,6 +35,8 @@ const StockDetailsPage = () => {
   const { symbol } = useParams();
   const navigate = useNavigate();
   const [stockInfo, setStockInfo] = useState(null);
+  const [predictions, setPredictions] = useState(null);
+  const [predictionDays, setPredictionDays] = useState(7);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [timeInterval, setTimeInterval] = useState("1M"); // Default to 1 month
@@ -76,11 +82,41 @@ const StockDetailsPage = () => {
     fetchStockInfo();
   }, [symbol]);
 
+  useEffect(() => {
+    if (stockInfo) {
+      fetchPredictions();
+    }
+  }, [stockInfo, predictionDays]);
+
+  const fetchPredictions = async () => {
+    try {
+      console.log(
+        `Fetching predictions for ${symbol} for ${predictionDays} days`
+      );
+      const data = await api.getStockPrediction(symbol, predictionDays);
+      console.log("Prediction data received:", data);
+
+      // Ensure predictions have valid price values
+      if (data && data.predictions) {
+        data.predictions = data.predictions.map((pred) => ({
+          ...pred,
+          price: pred.price !== null ? pred.price : 0,
+        }));
+      }
+
+      console.log("Processed prediction data:", data);
+      setPredictions(data);
+    } catch (err) {
+      console.error("Error fetching predictions:", err);
+      // Don't set error state here to avoid breaking the UI
+      // Just log the error and continue with null predictions
+    }
+  };
+
   // Filter price history based on selected time interval
   const getFilteredPriceHistory = () => {
     if (!stockInfo?.price_history) return [];
 
-    //const now = new Date();
     const intervals = {
       "1W": 7, // 1 week
       "1M": 30, // 1 month
@@ -93,194 +129,348 @@ const StockDetailsPage = () => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToShow);
 
-    console.log("Filtering with:", {
-      timeInterval,
-      daysToShow,
-      cutoffDate: cutoffDate.toISOString(),
-      totalRecords: stockInfo.price_history.length,
-    });
-
-    const filtered = stockInfo.price_history
-      .filter((price) => {
-        const priceDate = new Date(price.date);
-        return priceDate >= cutoffDate;
-      })
+    return stockInfo.price_history
+      .filter((price) => new Date(price.date) >= cutoffDate)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    console.log("Filtered records:", filtered.length);
-    return filtered;
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>{error}</div>;
-  if (!stockInfo) return <div>Stock not found</div>;
+  if (loading) {
+    return (
+      <Container
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "80vh",
+        }}
+      >
+        <CircularProgress />
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container sx={{ mt: 4 }}>
+        <Alert severity="error">{error}</Alert>
+      </Container>
+    );
+  }
+
+  if (!stockInfo) {
+    return (
+      <Container sx={{ mt: 4 }}>
+        <Alert severity="warning">Stock not found</Alert>
+      </Container>
+    );
+  }
 
   const filteredPriceHistory = getFilteredPriceHistory();
 
+  // Prepare historical data with null values for prediction dates
+  const historicalData = stockInfo.price_history
+    .slice()
+    .reverse()
+    .map((day) => ({
+      date: new Date(day.date).toLocaleDateString(),
+      historicalPrice: day.close_price,
+      predictedPrice: null,
+    }));
+
+  // Add predictions with null values for historical dates
+  if (predictions?.predictions?.length > 0) {
+    // Get the last historical date
+    const lastHistoricalDate = new Date(
+      historicalData[historicalData.length - 1].date
+    );
+
+    // Process each prediction
+    predictions.predictions.forEach((pred) => {
+      const predDate = new Date(pred.date);
+
+      // For the first prediction that matches the last historical date,
+      // set the predictedPrice to match the historicalPrice to connect the lines
+      if (predDate.getTime() === lastHistoricalDate.getTime()) {
+        historicalData[historicalData.length - 1].predictedPrice =
+          historicalData[historicalData.length - 1].historicalPrice;
+        return;
+      }
+
+      // Only add future predictions
+      if (
+        pred.price !== null &&
+        pred.price !== undefined &&
+        predDate > lastHistoricalDate
+      ) {
+        historicalData.push({
+          date: predDate.toLocaleDateString(),
+          historicalPrice: null,
+          predictedPrice: pred.price,
+        });
+      }
+    });
+  }
+
+  // Sort the combined data by date
+  historicalData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  console.log("Combined data:", historicalData);
+
+  // Safely get the last prediction price
+  const getLastPredictionPrice = () => {
+    const lastPrediction = historicalData.find(
+      (d) => d.predictedPrice !== null
+    );
+    return lastPrediction ? lastPrediction.predictedPrice : null;
+  };
+
+  const lastPredictionPrice = getLastPredictionPrice();
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">
-          {stockInfo.symbol} - {stockInfo.company_name}
-        </h1>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => navigate(-1)}
-        >
-          Back
-        </Button>
-      </div>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          {symbol} Stock Details
+        </Typography>
 
-      {stockInfo.latest_price && (
-        <Paper className="p-6 mb-8">
-          <Typography variant="h6" className="mb-4">
-            Latest Price Information
-          </Typography>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <Typography variant="subtitle2" color="textSecondary">
-                Date
-              </Typography>
-              <Typography variant="h6">
-                {new Date(stockInfo.latest_price.date).toLocaleDateString()}
-              </Typography>
-            </div>
-            <div>
-              <Typography variant="subtitle2" color="textSecondary">
-                Open
-              </Typography>
-              <Typography variant="h6">
-                ${stockInfo.latest_price.open_price.toFixed(2)}
-              </Typography>
-            </div>
-            <div>
-              <Typography variant="subtitle2" color="textSecondary">
-                High
-              </Typography>
-              <Typography variant="h6">
-                ${stockInfo.latest_price.high_price.toFixed(2)}
-              </Typography>
-            </div>
-            <div>
-              <Typography variant="subtitle2" color="textSecondary">
-                Low
-              </Typography>
-              <Typography variant="h6">
-                ${stockInfo.latest_price.low_price.toFixed(2)}
-              </Typography>
-            </div>
-            <div>
-              <Typography variant="subtitle2" color="textSecondary">
-                Close
-              </Typography>
-              <Typography variant="h6">
-                ${stockInfo.latest_price.close_price.toFixed(2)}
-              </Typography>
-            </div>
-            <div>
-              <Typography variant="subtitle2" color="textSecondary">
-                Volume
-              </Typography>
-              <Typography variant="h6">
-                {stockInfo.latest_price.volume.toLocaleString()}
-              </Typography>
-            </div>
-          </div>
-        </Paper>
-      )}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">
+            {stockInfo.symbol} - {stockInfo.company_name}
+          </h1>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => navigate(-1)}
+          >
+            Back
+          </Button>
+        </div>
 
-      {/* Price History Graph */}
-      <Paper className="p-6 mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <Typography variant="h6">Price History</Typography>
-          <FormControl sx={{ minWidth: 120 }}>
-            <InputLabel>Time Interval</InputLabel>
+        {stockInfo.latest_price && (
+          <Paper className="p-6 mb-8">
+            <Typography variant="h6" className="mb-4">
+              Latest Price Information
+            </Typography>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <Typography variant="subtitle2" color="textSecondary">
+                  Date
+                </Typography>
+                <Typography variant="h6">
+                  {new Date(stockInfo.latest_price.date).toLocaleDateString()}
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="subtitle2" color="textSecondary">
+                  Open
+                </Typography>
+                <Typography variant="h6">
+                  ${stockInfo.latest_price.open_price.toFixed(2)}
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="subtitle2" color="textSecondary">
+                  High
+                </Typography>
+                <Typography variant="h6">
+                  ${stockInfo.latest_price.high_price.toFixed(2)}
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="subtitle2" color="textSecondary">
+                  Low
+                </Typography>
+                <Typography variant="h6">
+                  ${stockInfo.latest_price.low_price.toFixed(2)}
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="subtitle2" color="textSecondary">
+                  Close
+                </Typography>
+                <Typography variant="h6">
+                  ${stockInfo.latest_price.close_price.toFixed(2)}
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="subtitle2" color="textSecondary">
+                  Volume
+                </Typography>
+                <Typography variant="h6">
+                  {stockInfo.latest_price.volume.toLocaleString()}
+                </Typography>
+              </div>
+            </div>
+          </Paper>
+        )}
+
+        <Box sx={{ mb: 3 }}>
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel>Prediction Days</InputLabel>
             <Select
-              value={timeInterval}
-              label="Time Interval"
-              onChange={(e) => setTimeInterval(e.target.value)}
+              value={predictionDays}
+              onChange={(e) => setPredictionDays(e.target.value)}
+              label="Prediction Days"
             >
-              <MenuItem value="1W">1 Week</MenuItem>
-              <MenuItem value="1M">1 Month</MenuItem>
-              <MenuItem value="3M">3 Months</MenuItem>
-              <MenuItem value="1Y">1 Year</MenuItem>
-              <MenuItem value="5Y">5 Years</MenuItem>
+              <MenuItem value={7}>7 days</MenuItem>
+              <MenuItem value={14}>14 days</MenuItem>
+              <MenuItem value={30}>30 days</MenuItem>
             </Select>
           </FormControl>
-        </div>
-        <div style={{ width: "100%", height: 400 }}>
-          <ResponsiveContainer>
-            <LineChart
-              data={filteredPriceHistory}
-              margin={{
-                top: 5,
-                right: 30,
-                left: 20,
-                bottom: 5,
-              }}
-            >
+        </Box>
+
+        <Box sx={{ height: 400 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={historicalData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tickFormatter={(date) => new Date(date).toLocaleDateString()}
-              />
+              <XAxis dataKey="date" />
               <YAxis
                 domain={["auto", "auto"]}
                 tickFormatter={(value) => `$${value.toFixed(2)}`}
+                padding={{ top: 20, bottom: 20 }}
               />
               <Tooltip
-                labelFormatter={(date) => new Date(date).toLocaleDateString()}
-                formatter={(value) => [`$${value.toFixed(2)}`, "Close Price"]}
+                formatter={(value, name) => {
+                  if (value === null) return ["-", name];
+                  return [`$${value.toFixed(2)}`, name];
+                }}
               />
               <Legend />
               <Line
                 type="monotone"
-                dataKey="close_price"
+                dataKey="historicalPrice"
                 stroke="#8884d8"
-                name="Close Price"
+                name="Historical Price"
                 dot={false}
+                strokeWidth={2}
+                activeDot={{ r: 8 }}
+                connectNulls={true}
+              />
+              <Line
+                type="monotone"
+                dataKey="predictedPrice"
+                stroke="#ff7300"
+                name="Predicted Price"
+                dot={false}
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                connectNulls={true}
               />
             </LineChart>
           </ResponsiveContainer>
-        </div>
-      </Paper>
+        </Box>
 
-      {/* Price History Table */}
-      <Paper className="p-6">
-        <Typography variant="h6" className="mb-4">
-          Price History Table
-        </Typography>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>Open</TableCell>
-                <TableCell>High</TableCell>
-                <TableCell>Low</TableCell>
-                <TableCell>Close</TableCell>
-                <TableCell>Volume</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredPriceHistory.map((price) => (
-                <TableRow key={price.date}>
-                  <TableCell>
-                    {new Date(price.date).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>${price.open_price.toFixed(2)}</TableCell>
-                  <TableCell>${price.high_price.toFixed(2)}</TableCell>
-                  <TableCell>${price.low_price.toFixed(2)}</TableCell>
-                  <TableCell>${price.close_price.toFixed(2)}</TableCell>
-                  <TableCell>{price.volume.toLocaleString()}</TableCell>
+        {predictions && predictions.lastPrice && lastPredictionPrice && (
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Prediction Summary
+            </Typography>
+            <Typography>
+              Current Price: ${predictions.lastPrice.toFixed(2)}
+            </Typography>
+            <Typography>
+              Trend: {predictions.trend === "up" ? "Upward" : "Downward"}
+            </Typography>
+            <Typography>
+              Predicted Price in {predictionDays} days: $
+              {lastPredictionPrice.toFixed(2)}
+            </Typography>
+          </Box>
+        )}
+
+        {/* Price History Graph */}
+        <Paper className="p-6 mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <Typography variant="h6">Price History</Typography>
+            <FormControl sx={{ minWidth: 120 }}>
+              <InputLabel>Time Interval</InputLabel>
+              <Select
+                value={timeInterval}
+                label="Time Interval"
+                onChange={(e) => setTimeInterval(e.target.value)}
+              >
+                <MenuItem value="1W">1 Week</MenuItem>
+                <MenuItem value="1M">1 Month</MenuItem>
+                <MenuItem value="3M">3 Months</MenuItem>
+                <MenuItem value="1Y">1 Year</MenuItem>
+                <MenuItem value="5Y">5 Years</MenuItem>
+              </Select>
+            </FormControl>
+          </div>
+          <div style={{ width: "100%", height: 400 }}>
+            <ResponsiveContainer>
+              <LineChart
+                data={filteredPriceHistory}
+                margin={{
+                  top: 20,
+                  right: 30,
+                  left: 20,
+                  bottom: 20,
+                }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(date) => new Date(date).toLocaleDateString()}
+                />
+                <YAxis
+                  domain={["auto", "auto"]}
+                  tickFormatter={(value) => `$${value.toFixed(2)}`}
+                  padding={{ top: 20, bottom: 20 }}
+                />
+                <Tooltip
+                  labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                  formatter={(value) => [`$${value.toFixed(2)}`, "Close Price"]}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="close_price"
+                  stroke="#8884d8"
+                  name="Close Price"
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Paper>
+
+        {/* Price History Table */}
+        <Paper className="p-6">
+          <Typography variant="h6" className="mb-4">
+            Price History Table
+          </Typography>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Open</TableCell>
+                  <TableCell>High</TableCell>
+                  <TableCell>Low</TableCell>
+                  <TableCell>Close</TableCell>
+                  <TableCell>Volume</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {filteredPriceHistory.map((price) => (
+                  <TableRow key={price.date}>
+                    <TableCell>
+                      {new Date(price.date).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>${price.open_price.toFixed(2)}</TableCell>
+                    <TableCell>${price.high_price.toFixed(2)}</TableCell>
+                    <TableCell>${price.low_price.toFixed(2)}</TableCell>
+                    <TableCell>${price.close_price.toFixed(2)}</TableCell>
+                    <TableCell>{price.volume.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
       </Paper>
-    </div>
+    </Container>
   );
 };
 

@@ -9,6 +9,7 @@ const stocklistRoutes = require("./routes/stocklist");
 const friendsRouter = require("./routes/friends");
 const stockdataRoutes = require("./routes/stockdata");
 const reviewRouter = require("./routes/review");
+const stockRoutes = require("./routes/stock");
 const pool = require("./db");
 
 const app = express();
@@ -46,6 +47,7 @@ app.use("/api/stocklist", authenticateSession, stocklistRoutes);
 app.use("/api/friends", friendsRouter);
 app.use("/api/stockdata", stockdataRoutes);
 app.use("/api/review", authenticateSession, reviewRouter);
+app.use("/api/stock", stockRoutes);
 
 // Start server
 app.listen(port, () => {

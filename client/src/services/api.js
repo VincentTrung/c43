@@ -605,6 +605,24 @@ const api = {
     return response.json();
   },
   // END OF REVIEW API //
+
+  // Stock prediction endpoint
+  // Fetches predicted stock prices for a given number of days
+  getStockPrediction: async (symbol, days = 7) => {
+    const response = await fetch(
+      `${API_BASE_URL}/stock/${symbol}/predict?days=${days}`,
+      {
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch stock predictions");
+    }
+
+    return response.json();
+  },
 };
 
 export default api;
