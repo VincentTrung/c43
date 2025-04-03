@@ -23,7 +23,6 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Divider,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -32,24 +31,32 @@ import ShareIcon from "@mui/icons-material/Share";
 import EditIcon from "@mui/icons-material/Edit";
 
 const StocklistPage = () => {
+  // URL parameter for the stock list ID
   const { listId } = useParams();
   const navigate = useNavigate();
   const [stockList, setStockList] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [currentUser, setCurrentUser] = useState(null);
+
   const [isAddStockOpen, setIsAddStockOpen] = useState(false);
+
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [newStock, setNewStock] = useState({ symbol: "", quantity: "" });
+
   const [friends, setFriends] = useState([]);
   const [selectedFriend, setSelectedFriend] = useState("");
+
+  const [currentUser, setCurrentUser] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
+
   const [reviews, setReviews] = useState([]);
   const [reviewContent, setReviewContent] = useState("");
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [editingReview, setEditingReview] = useState(null);
   const [reviewError, setReviewError] = useState("");
 
+  // Fetch stock list data and check ownership
   const fetchStockList = useCallback(async () => {
     try {
       setLoading(true);
@@ -69,6 +76,7 @@ const StocklistPage = () => {
     }
   }, [listId]);
 
+  // Fetch current user data
   const fetchCurrentUser = useCallback(async () => {
     try {
       const userData = await api.checkAuth();
@@ -78,6 +86,7 @@ const StocklistPage = () => {
     }
   }, []);
 
+  // Fetch list of friends for sharing
   const fetchFriends = useCallback(async () => {
     try {
       const friendsData = await api.getFriends();
@@ -87,6 +96,7 @@ const StocklistPage = () => {
     }
   }, []);
 
+  // Fetch reviews for the current stock list
   const fetchReviews = useCallback(async () => {
     try {
       const data = await api.getReviews(listId);
@@ -96,6 +106,7 @@ const StocklistPage = () => {
     }
   }, [listId]);
 
+  // Load initial data
   useEffect(() => {
     fetchStockList();
     fetchFriends();
@@ -103,6 +114,7 @@ const StocklistPage = () => {
     fetchCurrentUser();
   }, [fetchStockList, fetchFriends, fetchReviews, fetchCurrentUser]);
 
+  // Handle adding a new stock to the list
   const handleAddStock = async () => {
     try {
       setError(""); // Clear any previous errors
@@ -130,6 +142,7 @@ const StocklistPage = () => {
     }
   };
 
+  // Handle sharing the list with a friend
   const handleShareList = async () => {
     try {
       setError(""); // Clear any previous errors
@@ -143,6 +156,7 @@ const StocklistPage = () => {
     }
   };
 
+  // Handle removing a stock from the list
   const handleRemoveStock = async (symbol) => {
     if (
       !window.confirm(
@@ -162,14 +176,17 @@ const StocklistPage = () => {
     }
   };
 
+  // Navigate to stock details page
   const handleViewStockDetails = (symbol) => {
     navigate(`/stock/${symbol}`);
   };
 
+  // Clear error message
   const handleCloseError = () => {
     setError("");
   };
 
+  // Handle submitting or updating a review
   const handleReviewSubmit = async () => {
     try {
       setReviewError("");
@@ -199,6 +216,7 @@ const StocklistPage = () => {
     }
   };
 
+  // Handle deleting a review
   const handleDeleteReview = async (reviewId) => {
     try {
       await api.deleteReview(reviewId);
@@ -208,6 +226,7 @@ const StocklistPage = () => {
     }
   };
 
+  // Loading state
   if (loading) {
     return (
       <Container>
@@ -216,6 +235,7 @@ const StocklistPage = () => {
     );
   }
 
+  // Error state
   if (!stockList) {
     return (
       <Container>

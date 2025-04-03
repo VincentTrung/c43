@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 
+// Create a new stock list or portfolio modal
 const CreateModal = ({
   isOpen,
   onClose,
@@ -45,7 +46,6 @@ const CreateModal = ({
               className="w-full p-2 border rounded mb-4"
             >
               <option value="private">Private</option>
-              <option value="shared">Shared</option>
               <option value="public">Public</option>
             </select>
           )}

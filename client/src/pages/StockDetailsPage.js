@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
 import {
-  Box,
   Typography,
   Paper,
   Table,
@@ -81,7 +80,7 @@ const StockDetailsPage = () => {
   const getFilteredPriceHistory = () => {
     if (!stockInfo?.price_history) return [];
 
-    const now = new Date();
+    //const now = new Date();
     const intervals = {
       "1W": 7, // 1 week
       "1M": 30, // 1 month

@@ -9,9 +9,12 @@ const DashboardPage = () => {
   const [myStockLists, setMyStockLists] = useState([]);
   const [publicStockLists, setPublicStockLists] = useState([]);
   const [sharedStockLists, setSharedStockLists] = useState([]);
+
   const [error, setError] = useState("");
+
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [isStockListModalOpen, setIsStockListModalOpen] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => {

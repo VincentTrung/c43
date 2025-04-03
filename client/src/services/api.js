@@ -1,7 +1,8 @@
 const API_BASE_URL = "http://localhost:3001/api";
 
 const api = {
-  // Auth endpoints
+  // Auth endpoints //
+  // Handles user authentication and session management
   register: async (username, email, password) => {
     const response = await fetch(`${API_BASE_URL}/auth/register`, {
       method: "POST",
@@ -64,7 +65,8 @@ const api = {
     return response.json();
   },
 
-  // Portfolio functions
+  // Portfolio API //
+  // Manages user portfolios and their holdings
   getPortfolios: async () => {
     const response = await fetch(`${API_BASE_URL}/portfolio`, {
       credentials: "include",
@@ -225,6 +227,30 @@ const api = {
     return response.json();
   },
 
+  // Create a portfolio transaction (deposit, withdrawal, or transfer)
+  createPortfolioTransaction: async (portfolioId, transactionData) => {
+    const response = await fetch(
+      `${API_BASE_URL}/portfolio/${portfolioId}/transactions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(transactionData),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(
+        error.message || "Failed to create portfolio transaction"
+      );
+    }
+
+    return response.json();
+  },
+
   getStockInfo: async (symbol) => {
     const response = await fetch(`${API_BASE_URL}/portfolio/stock/${symbol}`, {
       credentials: "include",
@@ -237,8 +263,9 @@ const api = {
 
     return response.json();
   },
+  // END OF PORTFOLIO API //
 
-  // StockList functions
+  // StockList API //
   createStockList: async (name, visibility) => {
     const response = await fetch(`${API_BASE_URL}/stocklist`, {
       method: "POST",
@@ -305,8 +332,9 @@ const api = {
     }
     return response.json();
   },
+  // END OF STOCK LIST API //
 
-  // Friend Management
+  // Friend Management API //
   getFriends: async () => {
     const response = await fetch(`${API_BASE_URL}/friends`, {
       credentials: "include",
@@ -403,31 +431,9 @@ const api = {
     return response.json();
   },
 
-  // Create a portfolio transaction (deposit, withdrawal, or transfer)
-  createPortfolioTransaction: async (portfolioId, transactionData) => {
-    const response = await fetch(
-      `${API_BASE_URL}/portfolio/${portfolioId}/transactions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(transactionData),
-      }
-    );
+  // END OF FRIEND MANAGEMENT API //
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(
-        error.message || "Failed to create portfolio transaction"
-      );
-    }
-
-    return response.json();
-  },
-
-  // Stock data endpoints
+  // Stock data api (record daily stock information)//
   addStockData: async (stockData) => {
     const response = await fetch(`${API_BASE_URL}/stockdata`, {
       method: "POST",
@@ -472,7 +478,10 @@ const api = {
     return response.json();
   },
 
-  // Stock list item functions
+  // END OF STOCK DATA API //
+
+  // Stock list item API //
+  // Manages stock lists, including creation, sharing, and modification
   getStockList: async (listId) => {
     const response = await fetch(`${API_BASE_URL}/stocklist/${listId}`, {
       credentials: "include",
@@ -538,8 +547,9 @@ const api = {
 
     return response.json();
   },
+  // END OF STOCK LIST ITEM API //
 
-  // Review API
+  // Review API //
   getReviews: async (listId) => {
     const response = await fetch(`${API_BASE_URL}/review/list/${listId}`, {
       credentials: "include",
@@ -594,6 +604,7 @@ const api = {
     }
     return response.json();
   },
+  // END OF REVIEW API //
 };
 
 export default api;

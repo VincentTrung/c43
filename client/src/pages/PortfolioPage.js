@@ -11,7 +11,6 @@ import {
   TextField,
   MenuItem,
   Box,
-  Typography,
   IconButton,
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -197,16 +196,6 @@ const PortfolioPage = () => {
         setTransferError("Please enter a valid amount");
         return;
       }
-
-      // Create a single transfer transaction
-      const transactions = await api.createPortfolioTransaction(
-        portfolio.portfolioid,
-        {
-          type: "transfer",
-          amount: amount,
-          sourcePortfolioId: sourcePortfolioId,
-        }
-      );
 
       // Refresh both portfolio and portfolios data
       await Promise.all([
