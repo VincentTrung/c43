@@ -245,10 +245,32 @@ const StocklistPage = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-start items-center mb-8">
+        <div className="flex gap-4">
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => navigate("/dashboard")}
+          >
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 4 }}>
         <Box>
-          <Typography variant="h4" component="h1">
+          <Typography
+            variant="h4"
+            component="h1"
+            style={{ fontWeight: "bold" }}
+          >
             {stockList.name}
           </Typography>
           <Typography variant="subtitle1" color="text.secondary">
@@ -268,14 +290,17 @@ const StocklistPage = () => {
               >
                 Share List
               </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => setIsAddStockOpen(true)}
-              >
-                Add Stock
-              </Button>
             </>
+          )}
+          {isOwner && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={() => setIsAddStockOpen(true)}
+            >
+              Add Stock
+            </Button>
           )}
         </Box>
       </Box>
@@ -401,69 +426,71 @@ const StocklistPage = () => {
       </Dialog>
 
       {/* Reviews Section */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Reviews</h2>
-          {stockList && currentUser && (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => {
-                setEditingReview(null);
-                setReviewContent("");
-                setIsReviewDialogOpen(true);
-              }}
-            >
-              Write Review
-            </Button>
-          )}
-        </div>
+      <Box mt={4}>
+        <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Reviews</h2>
+            {stockList && currentUser && (
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => {
+                  setEditingReview(null);
+                  setReviewContent("");
+                  setIsReviewDialogOpen(true);
+                }}
+              >
+                Write Review
+              </Button>
+            )}
+          </div>
 
-        {reviews.length === 0 ? (
-          <p className="text-gray-500">No reviews yet.</p>
-        ) : (
-          <div className="space-y-4">
-            {reviews.map((review) => (
-              <div key={review.reviewid} className="border-b pb-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-semibold">{review.username}</p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(review.created_at).toLocaleDateString()}
-                      {review.edited_at && " (edited)"}
-                    </p>
-                  </div>
-                  {currentUser &&
-                    (review.userid === currentUser.user.userid ||
-                      stockList?.userid === currentUser.user.userid) && (
-                      <div className="flex space-x-2">
-                        {review.userid === currentUser.user.userid && (
+          {reviews.length === 0 ? (
+            <p className="text-gray-500">No reviews yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {reviews.map((review) => (
+                <div key={review.reviewid} className="border-b pb-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold">{review.username}</p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(review.created_at).toLocaleDateString()}
+                        {review.edited_at && " (edited)"}
+                      </p>
+                    </div>
+                    {currentUser &&
+                      (review.userid === currentUser.user.userid ||
+                        stockList?.userid === currentUser.user.userid) && (
+                        <div className="flex space-x-2">
+                          {review.userid === currentUser.user.userid && (
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setEditingReview(review);
+                                setReviewContent(review.content);
+                                setIsReviewDialogOpen(true);
+                              }}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          )}
                           <IconButton
                             size="small"
-                            onClick={() => {
-                              setEditingReview(review);
-                              setReviewContent(review.content);
-                              setIsReviewDialogOpen(true);
-                            }}
+                            onClick={() => handleDeleteReview(review.reviewid)}
                           >
-                            <EditIcon />
+                            <DeleteIcon />
                           </IconButton>
-                        )}
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDeleteReview(review.reviewid)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </div>
-                    )}
+                        </div>
+                      )}
+                  </div>
+                  <p className="mt-2">{review.content}</p>
                 </div>
-                <p className="mt-2">{review.content}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Box>
 
       {/* Review Dialog */}
       <Dialog
@@ -515,7 +542,7 @@ const StocklistPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Container>
+    </div>
   );
 };
 

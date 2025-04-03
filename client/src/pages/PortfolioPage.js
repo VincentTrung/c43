@@ -12,6 +12,7 @@ import {
   MenuItem,
   Box,
   IconButton,
+  Typography,
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import AddStockData from "./AddStockData";
@@ -218,8 +219,27 @@ const PortfolioPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-start items-center mb-8">
+        <div className="flex gap-4">
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => navigate("/dashboard")}
+          >
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
+
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">{portfolio.name}</h1>
+        <Typography
+          variant="h4"
+          component="h1"
+          style={{ fontWeight: "bold" }}
+          gutterBottom
+        >
+          {portfolio?.name || "Portfolio"}
+        </Typography>
         <Button
           variant="contained"
           color="primary"
@@ -228,6 +248,12 @@ const PortfolioPage = () => {
           Add Daily Stock Data
         </Button>
       </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
 
       {/* Cash Account Section */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
