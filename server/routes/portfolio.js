@@ -549,8 +549,7 @@ router.get("/stock/:symbol", async (req, res) => {
         volume
       FROM stockdata 
       WHERE symbol = $1 
-      ORDER BY date DESC 
-      LIMIT 30`,
+      ORDER BY date DESC`,
       [symbol]
     );
 

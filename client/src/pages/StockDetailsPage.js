@@ -117,12 +117,17 @@ const StockDetailsPage = () => {
   const getFilteredPriceHistory = () => {
     if (!stockInfo?.price_history) return [];
 
-    // Sort all history by date ascending
+    // Sort all history by date ascending (oldest to newest)
     const sortedHistory = [...stockInfo.price_history].sort(
       (a, b) => new Date(a.date) - new Date(b.date)
     );
 
     if (sortedHistory.length === 0) return [];
+
+    // If ALL is selected, return the complete history
+    if (timeInterval === "ALL") {
+      return sortedHistory;
+    }
 
     const intervals = {
       "1W": 7, // 1 week
@@ -130,12 +135,11 @@ const StockDetailsPage = () => {
       "3M": 90, // 3 months
       "1Y": 365, // 1 year
       "5Y": 1825, // 5 years
-      ALL: null, // null means show all data
     };
 
-    // If ALL is selected or no interval is found, return all data
-    if (timeInterval === "ALL" || !intervals[timeInterval]) {
-      return sortedHistory;
+    const daysToShow = intervals[timeInterval];
+    if (!daysToShow) {
+      return sortedHistory; // If interval not found, show all data
     }
 
     // Get the latest date from the data
@@ -143,7 +147,7 @@ const StockDetailsPage = () => {
 
     // Calculate the start date based on the selected interval
     const startDate = new Date(latestDate);
-    startDate.setDate(startDate.getDate() - intervals[timeInterval]);
+    startDate.setDate(startDate.getDate() - daysToShow);
 
     // Filter data to only include dates after the start date
     return sortedHistory.filter((price) => new Date(price.date) >= startDate);
@@ -261,11 +265,12 @@ const StockDetailsPage = () => {
       </div>
       {stockInfo.price_history.length > 0 && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Historical data available from{" "}
-          {new Date(stockInfo.price_history[0].date).toLocaleDateString()} to{" "}
-          {new Date(
-            stockInfo.price_history[stockInfo.price_history.length - 1].date
-          ).toLocaleDateString()}
+          {(() => {
+            const dates = stockInfo.price_history.map((p) => new Date(p.date));
+            const earliestDate = new Date(Math.min(...dates));
+            const latestDate = new Date(Math.max(...dates));
+            return `Historical data available from ${earliestDate.toLocaleDateString()} to ${latestDate.toLocaleDateString()}`;
+          })()}
         </Alert>
       )}
       Stock Details
