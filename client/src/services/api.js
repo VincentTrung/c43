@@ -495,6 +495,23 @@ const api = {
     return response.json();
   },
 
+  // Get stock list statistics
+  getStockListStatistics: async (listId, startDate, endDate) => {
+    const response = await fetch(
+      `${API_BASE_URL}/stocklist/${listId}/statistics?startDate=${startDate}&endDate=${endDate}`,
+      {
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch stock list statistics");
+    }
+
+    return response.json();
+  },
+
   addStockToList: async (listId, symbol, quantity) => {
     const response = await fetch(`${API_BASE_URL}/stocklist/${listId}/stocks`, {
       method: "POST",

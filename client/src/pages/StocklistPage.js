@@ -23,12 +23,18 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Grid,
+  Alert,
+  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import ShareIcon from "@mui/icons-material/Share";
 import EditIcon from "@mui/icons-material/Edit";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 
 const StocklistPage = () => {
   // URL parameter for the stock list ID
@@ -55,6 +61,12 @@ const StocklistPage = () => {
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [editingReview, setEditingReview] = useState(null);
   const [reviewError, setReviewError] = useState("");
+
+  const [statistics, setStatistics] = useState(null);
+  const [startDate, setStartDate] = useState(new Date(2025, 1, 1)); // February 1, 2025
+  const [endDate, setEndDate] = useState(new Date(2025, 2, 31)); // March 31, 2025
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
 
   // Fetch stock list data and check ownership
   const fetchStockList = useCallback(async () => {
@@ -106,13 +118,41 @@ const StocklistPage = () => {
     }
   }, [listId]);
 
+  // Fetch statistics for the stock list
+  const fetchStatistics = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+      setStatsError("");
+      const formattedStartDate = startDate.toISOString().split("T")[0];
+      const formattedEndDate = endDate.toISOString().split("T")[0];
+      const data = await api.getStockListStatistics(
+        listId,
+        formattedStartDate,
+        formattedEndDate
+      );
+      setStatistics(data);
+    } catch (err) {
+      setStatsError(err.message || "Error fetching statistics");
+      console.error("Error fetching statistics:", err);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [listId, startDate, endDate]);
+
   // Load initial data
   useEffect(() => {
     fetchStockList();
     fetchFriends();
     fetchReviews();
     fetchCurrentUser();
-  }, [fetchStockList, fetchFriends, fetchReviews, fetchCurrentUser]);
+    fetchStatistics();
+  }, [
+    fetchStockList,
+    fetchFriends,
+    fetchReviews,
+    fetchCurrentUser,
+    fetchStatistics,
+  ]);
 
   // Handle adding a new stock to the list
   const handleAddStock = async () => {
@@ -245,7 +285,7 @@ const StocklistPage = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <div className="flex justify-start items-center mb-8">
         <div className="flex gap-4">
           <Button
@@ -259,9 +299,9 @@ const StocklistPage = () => {
       </div>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
+        <Paper sx={{ p: 2, mb: 2, bgcolor: "error.light" }}>
+          <Typography color="error">{error}</Typography>
+        </Paper>
       )}
 
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 4 }}>
@@ -305,53 +345,6 @@ const StocklistPage = () => {
         </Box>
       </Box>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Symbol</TableCell>
-              <TableCell>Company Name</TableCell>
-              <TableCell align="right">Quantity</TableCell>
-              <TableCell align="right">Current Price</TableCell>
-              <TableCell align="right">Total Value</TableCell>
-              {isOwner && <TableCell align="center">Actions</TableCell>}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {stockList.items.map((item) => (
-              <TableRow key={item.symbol}>
-                <TableCell>{item.symbol}</TableCell>
-                <TableCell>{item.company_name}</TableCell>
-                <TableCell align="right">{item.quantity}</TableCell>
-                <TableCell align="right">
-                  ${Number(item.current_price || 0).toFixed(2)}
-                </TableCell>
-                <TableCell align="right">
-                  $
-                  {(Number(item.current_price || 0) * item.quantity).toFixed(2)}
-                </TableCell>
-                {isOwner && (
-                  <TableCell align="center">
-                    <IconButton
-                      onClick={() => handleViewStockDetails(item.symbol)}
-                      color="primary"
-                    >
-                      <VisibilityIcon />
-                    </IconButton>
-                    <IconButton
-                      onClick={() => handleRemoveStock(item.symbol)}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
       <Dialog open={isAddStockOpen} onClose={() => setIsAddStockOpen(false)}>
         <DialogTitle>Add Stock to List</DialogTitle>
         <DialogContent>
@@ -362,7 +355,10 @@ const StocklistPage = () => {
             fullWidth
             value={newStock.symbol}
             onChange={(e) =>
-              setNewStock({ ...newStock, symbol: e.target.value.toUpperCase() })
+              setNewStock({
+                ...newStock,
+                symbol: e.target.value.toUpperCase(),
+              })
             }
             inputProps={{ minLength: 1 }}
           />
@@ -425,124 +421,361 @@ const StocklistPage = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Reviews Section */}
-      <Box mt={4}>
-        <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Reviews</h2>
-            {stockList && currentUser && (
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => {
-                  setEditingReview(null);
-                  setReviewContent("");
-                  setIsReviewDialogOpen(true);
-                }}
+      {stockList && (
+        <>
+          {/* Stock List Details */}
+          <Typography variant="h5" gutterBottom>
+            Stock List
+          </Typography>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Symbol</TableCell>
+                  <TableCell>Company Name</TableCell>
+                  <TableCell align="right">Quantity</TableCell>
+                  <TableCell align="right">Current Price</TableCell>
+                  <TableCell align="right">Total Value</TableCell>
+                  {isOwner && <TableCell align="center">Actions</TableCell>}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {stockList.items.map((item) => (
+                  <TableRow key={item.symbol}>
+                    <TableCell>{item.symbol}</TableCell>
+                    <TableCell>{item.company_name}</TableCell>
+                    <TableCell align="right">{item.quantity}</TableCell>
+                    <TableCell align="right">
+                      ${Number(item.current_price || 0).toFixed(2)}
+                    </TableCell>
+                    <TableCell align="right">
+                      $
+                      {(
+                        Number(item.current_price || 0) * item.quantity
+                      ).toFixed(2)}
+                    </TableCell>
+                    {isOwner && (
+                      <TableCell align="center">
+                        <IconButton
+                          onClick={() => handleViewStockDetails(item.symbol)}
+                          color="primary"
+                        >
+                          <VisibilityIcon />
+                        </IconButton>
+                        <IconButton
+                          onClick={() => handleRemoveStock(item.symbol)}
+                          color="error"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {/* Statistics Section */}
+          <div className="bg-white p-6 rounded-lg shadow-md mt-5 mb-5">
+            <Box sx={{ mt: 4 }}>
+              <Typography
+                variant="h6"
+                style={{ fontWeight: "bold" }}
+                gutterBottom
               >
-                Write Review
-              </Button>
-            )}
+                Stock List Statistics
+              </Typography>
+              <Box
+                sx={{ mb: 2, display: "flex", gap: 2, alignItems: "center" }}
+              >
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    label="Start Date"
+                    value={startDate}
+                    onChange={setStartDate}
+                    slotProps={{ textField: { size: "small" } }}
+                  />
+                  <DatePicker
+                    label="End Date"
+                    value={endDate}
+                    onChange={setEndDate}
+                    slotProps={{ textField: { size: "small" } }}
+                  />
+                </LocalizationProvider>
+                <Button
+                  variant="contained"
+                  onClick={fetchStatistics}
+                  disabled={statsLoading}
+                >
+                  Refresh Statistics
+                </Button>
+              </Box>
+
+              {statsError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {statsError}
+                </Alert>
+              )}
+
+              {statsLoading ? (
+                <CircularProgress />
+              ) : statistics ? (
+                <>
+                  {/* List Summary */}
+                  <Paper sx={{ p: 2, mb: 3 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      List Summary
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Typography variant="body2" color="text.secondary">
+                          Total Value
+                        </Typography>
+                        <Typography variant="h6">
+                          ${statistics.portfolio.total_value.toFixed(2)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Typography variant="body2" color="text.secondary">
+                          Expected Return (Annual)
+                        </Typography>
+                        <Typography variant="h6">
+                          {(statistics.portfolio.expected_return * 100).toFixed(
+                            2
+                          )}
+                          %
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Typography variant="body2" color="text.secondary">
+                          List Beta
+                        </Typography>
+                        <Typography variant="h6">
+                          {statistics.portfolio.beta.toFixed(2)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Typography variant="body2" color="text.secondary">
+                          List Volatility (Annual)
+                        </Typography>
+                        <Typography variant="h6">
+                          {(
+                            statistics.portfolio.standard_deviation * 100
+                          ).toFixed(2)}
+                          %
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+
+                  {/* Stock Statistics */}
+                  <TableContainer component={Paper} sx={{ mb: 3 }}>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Symbol</TableCell>
+                          <TableCell>Company</TableCell>
+                          <TableCell align="right">Weight</TableCell>
+                          <TableCell align="right">Expected Return</TableCell>
+                          <TableCell align="right">Beta</TableCell>
+                          <TableCell align="right">
+                            Coefficient of Variation
+                          </TableCell>
+                          <TableCell align="right">Volatility</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {statistics.stocks.map((stock) => (
+                          <TableRow key={stock.symbol}>
+                            <TableCell>{stock.symbol}</TableCell>
+                            <TableCell>{stock.company_name}</TableCell>
+                            <TableCell align="right">
+                              {(stock.weight * 100).toFixed(2)}%
+                            </TableCell>
+                            <TableCell align="right">
+                              {(stock.expected_return * 100).toFixed(2)}%
+                            </TableCell>
+                            <TableCell align="right">
+                              {stock.beta.toFixed(2)}
+                            </TableCell>
+                            <TableCell align="right">
+                              {stock.coefficient_of_variation.toFixed(2)}
+                            </TableCell>
+                            <TableCell align="right">
+                              {(stock.standard_deviation * 100).toFixed(2)}%
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  {/* Correlation Matrix */}
+                  <Paper sx={{ p: 2, mb: 3 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Correlation Matrix
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Stock 1</TableCell>
+                            <TableCell>Stock 2</TableCell>
+                            <TableCell align="right">Correlation</TableCell>
+                            <TableCell align="right">Covariance</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {statistics?.correlation_matrix?.map(
+                            (correlation, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{correlation.stock1}</TableCell>
+                                <TableCell>{correlation.stock2}</TableCell>
+                                <TableCell align="right">
+                                  {correlation.correlation.toFixed(2)}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {correlation.covariance.toFixed(4)}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+                </>
+              ) : null}
+            </Box>
           </div>
 
-          {reviews.length === 0 ? (
-            <p className="text-gray-500">No reviews yet.</p>
-          ) : (
-            <div className="space-y-4">
-              {reviews.map((review) => (
-                <div key={review.reviewid} className="border-b pb-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold">{review.username}</p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(review.created_at).toLocaleDateString()}
-                        {review.edited_at && " (edited)"}
-                      </p>
-                    </div>
-                    {currentUser &&
-                      (review.userid === currentUser.user.userid ||
-                        stockList?.userid === currentUser.user.userid) && (
-                        <div className="flex space-x-2">
-                          {review.userid === currentUser.user.userid && (
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                setEditingReview(review);
-                                setReviewContent(review.content);
-                                setIsReviewDialogOpen(true);
-                              }}
-                            >
-                              <EditIcon />
-                            </IconButton>
-                          )}
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteReview(review.reviewid)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </div>
-                      )}
-                  </div>
-                  <p className="mt-2">{review.content}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Box>
+          {/* Reviews Section */}
+          <Box mt={4}>
+            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Reviews</h2>
+                {stockList && currentUser && (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => {
+                      setEditingReview(null);
+                      setReviewContent("");
+                      setIsReviewDialogOpen(true);
+                    }}
+                  >
+                    Write Review
+                  </Button>
+                )}
+              </div>
 
-      {/* Review Dialog */}
-      <Dialog
-        open={isReviewDialogOpen}
-        onClose={() => {
-          setIsReviewDialogOpen(false);
-          setEditingReview(null);
-          setReviewContent("");
-        }}
-      >
-        <DialogTitle>
-          {editingReview ? "Edit Review" : "Write Review"}
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Review"
-            type="text"
-            fullWidth
-            multiline
-            rows={4}
-            value={reviewContent}
-            onChange={(e) => setReviewContent(e.target.value)}
-            error={!!reviewError}
-            helperText={reviewError}
-            inputProps={{ maxLength: 4000 }}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-            {reviewContent.length}/4000 characters
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
+              {reviews.length === 0 ? (
+                <p className="text-gray-500">No reviews yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <div key={review.reviewid} className="border-b pb-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-semibold">{review.username}</p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(review.created_at).toLocaleDateString()}
+                            {review.edited_at && " (edited)"}
+                          </p>
+                        </div>
+                        {currentUser &&
+                          (review.userid === currentUser.user.userid ||
+                            stockList?.userid === currentUser.user.userid) && (
+                            <div className="flex space-x-2">
+                              {review.userid === currentUser.user.userid && (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setEditingReview(review);
+                                    setReviewContent(review.content);
+                                    setIsReviewDialogOpen(true);
+                                  }}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                              )}
+                              <IconButton
+                                size="small"
+                                onClick={() =>
+                                  handleDeleteReview(review.reviewid)
+                                }
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </div>
+                          )}
+                      </div>
+                      <p className="mt-2">{review.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Box>
+
+          {/* Review Dialog */}
+          <Dialog
+            open={isReviewDialogOpen}
+            onClose={() => {
               setIsReviewDialogOpen(false);
               setEditingReview(null);
               setReviewContent("");
             }}
           >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleReviewSubmit}
-            color="primary"
-            disabled={!reviewContent.trim() || reviewContent.length > 4000}
-          >
-            {editingReview ? "Update" : "Submit"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </div>
+            <DialogTitle>
+              {editingReview ? "Edit Review" : "Write Review"}
+            </DialogTitle>
+            <DialogContent>
+              <TextField
+                autoFocus
+                margin="dense"
+                label="Review"
+                type="text"
+                fullWidth
+                multiline
+                rows={4}
+                value={reviewContent}
+                onChange={(e) => setReviewContent(e.target.value)}
+                error={!!reviewError}
+                helperText={reviewError}
+                inputProps={{ maxLength: 4000 }}
+              />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mt: 1 }}
+              >
+                {reviewContent.length}/4000 characters
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                onClick={() => {
+                  setIsReviewDialogOpen(false);
+                  setEditingReview(null);
+                  setReviewContent("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleReviewSubmit}
+                color="primary"
+                disabled={!reviewContent.trim() || reviewContent.length > 4000}
+              >
+                {editingReview ? "Update" : "Submit"}
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </>
+      )}
+    </Container>
   );
 };
 
