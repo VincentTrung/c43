@@ -13,6 +13,16 @@ import {
   Box,
   IconButton,
   Typography,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Alert,
+  CircularProgress,
+  Grid,
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import AddStockData from "./AddStockData";
@@ -52,6 +62,17 @@ const PortfolioPage = () => {
 
   // Add Stock Data state
   const [isAddStockDataOpen, setIsAddStockDataOpen] = useState(false);
+
+  // Statistics state
+  const [statistics, setStatistics] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0], // Last 30 days
+    endDate: new Date().toISOString().split("T")[0],
+  });
 
   // Fetch portfolio data and convert string values to numbers
   const fetchPortfolio = useCallback(async () => {
@@ -110,12 +131,38 @@ const PortfolioPage = () => {
     }
   }, []);
 
+  // Fetch portfolio statistics
+  const fetchPortfolioStatistics = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+      setStatsError("");
+      const data = await api.getPortfolioStatistics(
+        portfolioId,
+        dateRange.startDate,
+        dateRange.endDate
+      );
+      console.log("Portfolio Statistics Data:", data);
+      setStatistics(data);
+    } catch (err) {
+      setStatsError(err.message);
+      console.error("Error fetching portfolio statistics:", err);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [portfolioId, dateRange]);
+
   // Load portfolio and transaction data on component mount
   useEffect(() => {
     fetchPortfolio();
     fetchTransactions();
     fetchPortfolios();
-  }, [fetchPortfolio, fetchTransactions, fetchPortfolios]);
+    fetchPortfolioStatistics();
+  }, [
+    fetchPortfolio,
+    fetchTransactions,
+    fetchPortfolios,
+    fetchPortfolioStatistics,
+  ]);
 
   // Handle cash deposit
   const handleDeposit = async () => {
@@ -197,6 +244,12 @@ const PortfolioPage = () => {
         setTransferError("Please enter a valid amount");
         return;
       }
+
+      await api.createPortfolioTransaction(portfolioId, {
+        type: "transfer",
+        amount: amount,
+        sourcePortfolioId: sourcePortfolioId,
+      });
 
       // Refresh both portfolio and portfolios data
       await Promise.all([
@@ -525,6 +578,174 @@ const PortfolioPage = () => {
           </table>
         </div>
       </div>
+
+      {/* Portfolio Statistics Section */}
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h6" style={{ fontWeight: "bold" }} gutterBottom>
+          Portfolio Statistics
+        </Typography>
+        <Box sx={{ mb: 2, display: "flex", gap: 2, alignItems: "center" }}>
+          <TextField
+            label="Start Date"
+            type="date"
+            value={dateRange.startDate}
+            onChange={(e) =>
+              setDateRange({ ...dateRange, startDate: e.target.value })
+            }
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            label="End Date"
+            type="date"
+            value={dateRange.endDate}
+            onChange={(e) =>
+              setDateRange({ ...dateRange, endDate: e.target.value })
+            }
+            InputLabelProps={{ shrink: true }}
+          />
+          <Button
+            variant="contained"
+            onClick={fetchPortfolioStatistics}
+            disabled={statsLoading}
+          >
+            Refresh Statistics
+          </Button>
+        </Box>
+
+        {statsError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {statsError}
+          </Alert>
+        )}
+
+        {statsLoading ? (
+          <CircularProgress />
+        ) : statistics ? (
+          <>
+            {/* Portfolio Summary */}
+            <Paper sx={{ p: 2, mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Portfolio Summary
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Value
+                  </Typography>
+                  <Typography variant="h6">
+                    ${statistics.portfolio.total_value.toFixed(2)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="body2" color="text.secondary">
+                    Expected Return (Annual)
+                  </Typography>
+                  <Typography variant="h6">
+                    {(statistics.portfolio.expected_return * 100).toFixed(2)}%
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="body2" color="text.secondary">
+                    Portfolio Beta
+                  </Typography>
+                  <Typography variant="h6">
+                    {statistics.portfolio.beta.toFixed(2)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="body2" color="text.secondary">
+                    Portfolio Volatility (Annual)
+                  </Typography>
+                  <Typography variant="h6">
+                    {(statistics.portfolio.standard_deviation * 100).toFixed(2)}
+                    %
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            {/* Stock Statistics */}
+            <TableContainer component={Paper} sx={{ mb: 3 }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell>Company</TableCell>
+                    <TableCell align="right">Weight</TableCell>
+                    <TableCell align="right">Expected Return</TableCell>
+                    <TableCell align="right">Beta</TableCell>
+                    <TableCell align="right">
+                      Coefficient of Variation
+                    </TableCell>
+                    <TableCell align="right">Volatility</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {statistics.stocks.map((stock) => (
+                    <TableRow key={stock.symbol}>
+                      <TableCell>{stock.symbol}</TableCell>
+                      <TableCell>{stock.company_name}</TableCell>
+                      <TableCell align="right">
+                        {(stock.weight * 100).toFixed(2)}%
+                      </TableCell>
+                      <TableCell align="right">
+                        {(stock.expected_return * 100).toFixed(2)}%
+                      </TableCell>
+                      <TableCell align="right">
+                        {stock.beta.toFixed(2)}
+                      </TableCell>
+                      <TableCell align="right">
+                        {stock.coefficient_of_variation.toFixed(2)}
+                      </TableCell>
+                      <TableCell align="right">
+                        {(stock.standard_deviation * 100).toFixed(2)}%
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* Correlation Matrix */}
+            <Paper sx={{ p: 2, mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Correlation Matrix
+              </Typography>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Stock 1</TableCell>
+                      <TableCell>Stock 2</TableCell>
+                      <TableCell align="right">Correlation</TableCell>
+                      <TableCell align="right">Covariance</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {statistics?.correlation_matrix?.map(
+                      (correlation, index) => {
+                        console.log("Correlation Entry:", correlation);
+                        return (
+                          <TableRow key={index}>
+                            <TableCell>{correlation.stock1}</TableCell>
+                            <TableCell>{correlation.stock2}</TableCell>
+                            <TableCell align="right">
+                              {correlation.correlation.toFixed(2)}
+                            </TableCell>
+                            <TableCell align="right">
+                              {correlation.covariance.toFixed(4)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+          </>
+        ) : null}
+      </Box>
 
       {/* Error Modal */}
       <ErrorModal

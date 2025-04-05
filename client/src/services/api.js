@@ -623,6 +623,23 @@ const api = {
 
     return response.json();
   },
+
+  // Get portfolio statistics
+  getPortfolioStatistics: async (portfolioId, startDate, endDate) => {
+    const response = await fetch(
+      `${API_BASE_URL}/portfolio/${portfolioId}/statistics?startDate=${startDate}&endDate=${endDate}`,
+      {
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch portfolio statistics");
+    }
+
+    return response.json();
+  },
 };
 
 export default api;

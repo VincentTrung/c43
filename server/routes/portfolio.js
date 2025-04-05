@@ -701,4 +701,307 @@ router.post("/:portfolioId/transactions", async (req, res) => {
   }
 });
 
+// Get portfolio statistics
+router.get("/:portfolioId/statistics", async (req, res) => {
+  try {
+    const { portfolioId } = req.params;
+    const { startDate, endDate } = req.query;
+    const userId = req.session.user.userid;
+
+    // Verify portfolio belongs to user
+    const portfolioResult = await pool.query(
+      "SELECT * FROM portfolio WHERE portfolioid = $1 AND userid = $2",
+      [portfolioId, userId]
+    );
+
+    if (portfolioResult.rows.length === 0) {
+      return res.status(404).json({ message: "Portfolio not found" });
+    }
+
+    // Get portfolio holdings with current prices
+    const holdingsResult = await pool.query(
+      `WITH latest_prices AS (
+        SELECT DISTINCT ON (symbol) symbol, close_price
+        FROM stockdata
+        ORDER BY symbol, date DESC
+      )
+      SELECT sh.symbol, sh.quantity, s.company_name, COALESCE(lp.close_price, 0) as current_price 
+      FROM stockholding sh 
+      JOIN stock s ON sh.symbol = s.symbol 
+      LEFT JOIN latest_prices lp ON sh.symbol = lp.symbol 
+      WHERE sh.portfolioid = $1`,
+      [portfolioId]
+    );
+
+    const stocks = holdingsResult.rows;
+    const stockSymbols = stocks.map((stock) => stock.symbol);
+
+    // Get price data for all stocks
+    const priceDataResult = await pool.query(
+      `SELECT symbol, date, close_price 
+       FROM stockdata 
+       WHERE symbol = ANY($1)
+       AND date BETWEEN $2 AND $3
+       ORDER BY symbol, date`,
+      [stockSymbols, startDate, endDate]
+    );
+
+    // Check if we have enough data points
+    const dataPointsBySymbol = {};
+    priceDataResult.rows.forEach((row) => {
+      if (!dataPointsBySymbol[row.symbol]) {
+        dataPointsBySymbol[row.symbol] = 0;
+      }
+      dataPointsBySymbol[row.symbol]++;
+    });
+
+    // If we have less than 2 data points for any stock, return an error
+    const insufficientData = Object.entries(dataPointsBySymbol).filter(
+      ([_, count]) => count < 2
+    );
+    if (insufficientData.length > 0) {
+      return res.status(400).json({
+        error: "Insufficient data points",
+        details: `Need at least 2 data points for each stock. Current data points: ${Object.entries(
+          dataPointsBySymbol
+        )
+          .map(([symbol, count]) => `${symbol}: ${count}`)
+          .join(", ")}`,
+      });
+    }
+
+    // Organize price data by symbol
+    const priceDataBySymbol = {};
+    priceDataResult.rows.forEach((row) => {
+      if (!priceDataBySymbol[row.symbol]) {
+        priceDataBySymbol[row.symbol] = [];
+      }
+      priceDataBySymbol[row.symbol].push(row);
+    });
+
+    // Calculate daily returns for each stock
+    const returnsBySymbol = {};
+    Object.entries(priceDataBySymbol).forEach(([symbol, prices]) => {
+      returnsBySymbol[symbol] = prices.slice(1).map((price, i) => {
+        const prevPrice = prices[i].close_price;
+        return (price.close_price - prevPrice) / prevPrice;
+      });
+    });
+
+    // Calculate portfolio weights
+    const totalValue = stocks.reduce(
+      (sum, stock) => sum + stock.quantity * stock.current_price,
+      0
+    );
+    const weights = stocks.map((stock) => ({
+      symbol: stock.symbol,
+      weight: (stock.quantity * stock.current_price) / totalValue,
+    }));
+
+    // Calculate market returns (average of all stocks)
+    const marketReturns = calculateMarketReturns(returnsBySymbol, weights);
+
+    // Calculate statistics for each stock
+    const stockStats = stocks.map((stock) => {
+      const returns = returnsBySymbol[stock.symbol] || [];
+
+      // Calculate mean and standard deviation of returns
+      const meanReturn =
+        returns.reduce((sum, r) => sum + r, 0) / returns.length;
+      const stddevReturn = Math.sqrt(
+        returns.reduce((sum, r) => sum + Math.pow(r - meanReturn, 2), 0) /
+          (returns.length - 1)
+      );
+
+      // Calculate coefficient of variation (risk per unit of return)
+      const coefficientOfVariation = stddevReturn / Math.abs(meanReturn || 1);
+
+      // Calculate beta (market sensitivity)
+      const beta = calculateBeta(returns, marketReturns);
+
+      // Calculate expected return (using historical mean)
+      const expectedReturn = meanReturn * 252; // Annualized return
+
+      return {
+        symbol: stock.symbol,
+        company_name: stock.company_name,
+        weight: weights.find((w) => w.symbol === stock.symbol)?.weight || 0,
+        coefficient_of_variation: coefficientOfVariation,
+        beta: beta,
+        expected_return: expectedReturn,
+        standard_deviation: stddevReturn * Math.sqrt(252), // Annualized volatility
+        data_points: dataPointsBySymbol[stock.symbol],
+      };
+    });
+
+    // Calculate portfolio-level statistics
+    const portfolioBeta = stockStats.reduce(
+      (sum, stock) => sum + stock.beta * stock.weight,
+      0
+    );
+    const portfolioExpectedReturn = stockStats.reduce(
+      (sum, stock) => sum + stock.expected_return * stock.weight,
+      0
+    );
+
+    // Calculate portfolio variance using covariance matrix
+    let portfolioVariance = 0;
+    for (let i = 0; i < stockSymbols.length; i++) {
+      for (let j = 0; j < stockSymbols.length; j++) {
+        const stock1Returns = returnsBySymbol[stockSymbols[i]] || [];
+        const stock2Returns = returnsBySymbol[stockSymbols[j]] || [];
+
+        const { covariance } = calculateCorrelationAndCovariance(
+          stock1Returns,
+          stock2Returns
+        );
+
+        const weight1 =
+          weights.find((w) => w.symbol === stockSymbols[i])?.weight || 0;
+        const weight2 =
+          weights.find((w) => w.symbol === stockSymbols[j])?.weight || 0;
+        portfolioVariance += weight1 * weight2 * covariance;
+      }
+    }
+    const portfolioStandardDeviation = Math.sqrt(portfolioVariance * 252); // Annualized
+
+    // Calculate correlation matrix
+    const correlationMatrix = [];
+    for (let i = 0; i < stockSymbols.length; i++) {
+      for (let j = i + 1; j < stockSymbols.length; j++) {
+        const stock1Returns = returnsBySymbol[stockSymbols[i]] || [];
+        const stock2Returns = returnsBySymbol[stockSymbols[j]] || [];
+
+        const { correlation, covariance } = calculateCorrelationAndCovariance(
+          stock1Returns,
+          stock2Returns
+        );
+
+        correlationMatrix.push({
+          stock1: stockSymbols[i],
+          stock2: stockSymbols[j],
+          correlation: Number(correlation.toFixed(6)),
+          covariance: Number(covariance.toFixed(6)),
+          data_points: Math.min(
+            dataPointsBySymbol[stockSymbols[i]],
+            dataPointsBySymbol[stockSymbols[j]]
+          ),
+        });
+      }
+    }
+
+    res.json({
+      stocks: stockStats,
+      correlation_matrix: correlationMatrix,
+      portfolio: {
+        beta: portfolioBeta,
+        expected_return: portfolioExpectedReturn,
+        standard_deviation: portfolioStandardDeviation,
+        total_value: totalValue,
+      },
+      data_summary: {
+        date_range: {
+          start: startDate,
+          end: endDate,
+        },
+        data_points: dataPointsBySymbol,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching portfolio statistics:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Helper function to calculate correlation and covariance
+function calculateCorrelationAndCovariance(returns1, returns2) {
+  // Find the overlapping dates
+  const minLength = Math.min(returns1.length, returns2.length);
+  if (minLength < 2) return { correlation: 0, covariance: 0 };
+
+  // Use only the overlapping returns
+  const alignedReturns1 = returns1.slice(0, minLength);
+  const alignedReturns2 = returns2.slice(0, minLength);
+
+  const mean1 = alignedReturns1.reduce((sum, r) => sum + r, 0) / minLength;
+  const mean2 = alignedReturns2.reduce((sum, r) => sum + r, 0) / minLength;
+
+  let covariance = 0;
+  let variance1 = 0;
+  let variance2 = 0;
+
+  for (let i = 0; i < minLength; i++) {
+    const diff1 = alignedReturns1[i] - mean1;
+    const diff2 = alignedReturns2[i] - mean2;
+    covariance += diff1 * diff2;
+    variance1 += diff1 * diff1;
+    variance2 += diff2 * diff2;
+  }
+
+  covariance /= minLength - 1;
+  variance1 /= minLength - 1;
+  variance2 /= minLength - 1;
+
+  const correlation =
+    variance1 === 0 || variance2 === 0
+      ? 0
+      : covariance / Math.sqrt(variance1 * variance2);
+
+  return { correlation, covariance };
+}
+
+// Helper function to calculate beta
+function calculateBeta(stockReturns, marketReturns) {
+  const minLength = Math.min(stockReturns.length, marketReturns.length);
+  if (minLength < 2) return 0;
+
+  const alignedStockReturns = stockReturns.slice(0, minLength);
+  const alignedMarketReturns = marketReturns.slice(0, minLength);
+
+  const { covariance } = calculateCorrelationAndCovariance(
+    alignedStockReturns,
+    alignedMarketReturns
+  );
+  const marketVariance = calculateVariance(alignedMarketReturns);
+
+  return marketVariance === 0 ? 0 : covariance / marketVariance;
+}
+
+// Helper function to calculate variance
+function calculateVariance(returns) {
+  if (returns.length === 0) return 0;
+  const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+  return (
+    returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) /
+    (returns.length - 1)
+  );
+}
+
+// Helper function to calculate market returns (average of all stocks)
+function calculateMarketReturns(returnsBySymbol, weights) {
+  const symbols = Object.keys(returnsBySymbol);
+  if (symbols.length === 0) return [];
+
+  // Find the minimum length of returns arrays
+  const minLength = Math.min(...symbols.map((s) => returnsBySymbol[s].length));
+  if (minLength < 2) return [];
+
+  // Calculate weighted average returns
+  const marketReturns = [];
+  for (let i = 0; i < minLength; i++) {
+    let weightedReturn = 0;
+    let totalWeight = 0;
+
+    symbols.forEach((symbol) => {
+      const weight = weights.find((w) => w.symbol === symbol)?.weight || 0;
+      weightedReturn += returnsBySymbol[symbol][i] * weight;
+      totalWeight += weight;
+    });
+
+    marketReturns.push(totalWeight > 0 ? weightedReturn / totalWeight : 0);
+  }
+
+  return marketReturns;
+}
+
 module.exports = router;

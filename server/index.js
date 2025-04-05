@@ -11,6 +11,7 @@ const stockdataRoutes = require("./routes/stockdata");
 const reviewRouter = require("./routes/review");
 const stockRoutes = require("./routes/stock");
 const pool = require("./db");
+//const portfolioStatsRouter = require("./routes/portfolioStats");
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -43,6 +44,7 @@ app.use(
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/portfolio", authenticateSession, portfolioRoutes);
+//app.use("/api/portfolio-stats", authenticateSession, portfolioStatsRouter);
 app.use("/api/stocklist", authenticateSession, stocklistRoutes);
 app.use("/api/friends", friendsRouter);
 app.use("/api/stockdata", stockdataRoutes);
