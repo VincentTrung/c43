@@ -476,6 +476,75 @@ const StocklistPage = () => {
             </Table>
           </TableContainer>
 
+          {/* Reviews Section */}
+          <Box mt={4}>
+            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Reviews</h2>
+                {stockList && currentUser && (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => {
+                      setEditingReview(null);
+                      setReviewContent("");
+                      setIsReviewDialogOpen(true);
+                    }}
+                  >
+                    Write Review
+                  </Button>
+                )}
+              </div>
+
+              {reviews.length === 0 ? (
+                <p className="text-gray-500">No reviews yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <div key={review.reviewid} className="border-b pb-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-semibold">{review.username}</p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(review.created_at).toLocaleDateString()}
+                            {review.edited_at && " (edited)"}
+                          </p>
+                        </div>
+                        {currentUser &&
+                          (review.userid === currentUser.user.userid ||
+                            stockList?.userid === currentUser.user.userid) && (
+                            <div className="flex space-x-2">
+                              {review.userid === currentUser.user.userid && (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setEditingReview(review);
+                                    setReviewContent(review.content);
+                                    setIsReviewDialogOpen(true);
+                                  }}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                              )}
+                              <IconButton
+                                size="small"
+                                onClick={() =>
+                                  handleDeleteReview(review.reviewid)
+                                }
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </div>
+                          )}
+                      </div>
+                      <p className="mt-2">{review.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Box>
+
           {/* Statistics Section */}
           <div className="bg-white p-6 rounded-lg shadow-md mt-5 mb-5">
             <Box sx={{ mt: 4 }}>
@@ -649,75 +718,6 @@ const StocklistPage = () => {
               ) : null}
             </Box>
           </div>
-
-          {/* Reviews Section */}
-          <Box mt={4}>
-            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Reviews</h2>
-                {stockList && currentUser && (
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={() => {
-                      setEditingReview(null);
-                      setReviewContent("");
-                      setIsReviewDialogOpen(true);
-                    }}
-                  >
-                    Write Review
-                  </Button>
-                )}
-              </div>
-
-              {reviews.length === 0 ? (
-                <p className="text-gray-500">No reviews yet.</p>
-              ) : (
-                <div className="space-y-4">
-                  {reviews.map((review) => (
-                    <div key={review.reviewid} className="border-b pb-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-semibold">{review.username}</p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(review.created_at).toLocaleDateString()}
-                            {review.edited_at && " (edited)"}
-                          </p>
-                        </div>
-                        {currentUser &&
-                          (review.userid === currentUser.user.userid ||
-                            stockList?.userid === currentUser.user.userid) && (
-                            <div className="flex space-x-2">
-                              {review.userid === currentUser.user.userid && (
-                                <IconButton
-                                  size="small"
-                                  onClick={() => {
-                                    setEditingReview(review);
-                                    setReviewContent(review.content);
-                                    setIsReviewDialogOpen(true);
-                                  }}
-                                >
-                                  <EditIcon />
-                                </IconButton>
-                              )}
-                              <IconButton
-                                size="small"
-                                onClick={() =>
-                                  handleDeleteReview(review.reviewid)
-                                }
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </div>
-                          )}
-                      </div>
-                      <p className="mt-2">{review.content}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Box>
 
           {/* Review Dialog */}
           <Dialog
