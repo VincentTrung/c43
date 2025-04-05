@@ -68,10 +68,8 @@ const PortfolioPage = () => {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState("");
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0], // Last 30 days
-    endDate: new Date().toISOString().split("T")[0],
+    startDate: "2013-02-07", // Updated default start date
+    endDate: "2018-02-06", // Updated default end date
   });
 
   // Fetch portfolio data and convert string values to numbers

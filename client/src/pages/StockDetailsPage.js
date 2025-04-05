@@ -117,21 +117,36 @@ const StockDetailsPage = () => {
   const getFilteredPriceHistory = () => {
     if (!stockInfo?.price_history) return [];
 
+    // Sort all history by date ascending
+    const sortedHistory = [...stockInfo.price_history].sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
+    );
+
+    if (sortedHistory.length === 0) return [];
+
     const intervals = {
       "1W": 7, // 1 week
       "1M": 30, // 1 month
       "3M": 90, // 3 months
       "1Y": 365, // 1 year
       "5Y": 1825, // 5 years
+      ALL: null, // null means show all data
     };
 
-    const daysToShow = intervals[timeInterval] || 30;
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysToShow);
+    // If ALL is selected or no interval is found, return all data
+    if (timeInterval === "ALL" || !intervals[timeInterval]) {
+      return sortedHistory;
+    }
 
-    return stockInfo.price_history
-      .filter((price) => new Date(price.date) >= cutoffDate)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Get the latest date from the data
+    const latestDate = new Date(sortedHistory[sortedHistory.length - 1].date);
+
+    // Calculate the start date based on the selected interval
+    const startDate = new Date(latestDate);
+    startDate.setDate(startDate.getDate() - intervals[timeInterval]);
+
+    // Filter data to only include dates after the start date
+    return sortedHistory.filter((price) => new Date(price.date) >= startDate);
   };
 
   if (loading) {
@@ -244,6 +259,15 @@ const StockDetailsPage = () => {
           {symbol}
         </Typography>
       </div>
+      {stockInfo.price_history.length > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Historical data available from{" "}
+          {new Date(stockInfo.price_history[0].date).toLocaleDateString()} to{" "}
+          {new Date(
+            stockInfo.price_history[stockInfo.price_history.length - 1].date
+          ).toLocaleDateString()}
+        </Alert>
+      )}
       Stock Details
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -396,6 +420,7 @@ const StockDetailsPage = () => {
               <MenuItem value="3M">3 Months</MenuItem>
               <MenuItem value="1Y">1 Year</MenuItem>
               <MenuItem value="5Y">5 Years</MenuItem>
+              <MenuItem value="ALL">All Data</MenuItem>
             </Select>
           </FormControl>
         </div>

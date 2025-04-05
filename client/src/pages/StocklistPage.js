@@ -63,10 +63,10 @@ const StocklistPage = () => {
   const [reviewError, setReviewError] = useState("");
 
   const [statistics, setStatistics] = useState(null);
-  const [startDate, setStartDate] = useState(new Date(2025, 1, 1)); // February 1, 2025
-  const [endDate, setEndDate] = useState(new Date(2025, 2, 31)); // March 31, 2025
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState("");
+  const [startDate, setStartDate] = useState(new Date("2013-02-07")); // Convert to Date object
+  const [endDate, setEndDate] = useState(new Date("2018-02-06")); // Convert to Date object
 
   // Fetch stock list data and check ownership
   const fetchStockList = useCallback(async () => {
@@ -562,13 +562,13 @@ const StocklistPage = () => {
                   <DatePicker
                     label="Start Date"
                     value={startDate}
-                    onChange={setStartDate}
+                    onChange={(newValue) => setStartDate(newValue)}
                     slotProps={{ textField: { size: "small" } }}
                   />
                   <DatePicker
                     label="End Date"
                     value={endDate}
-                    onChange={setEndDate}
+                    onChange={(newValue) => setEndDate(newValue)}
                     slotProps={{ textField: { size: "small" } }}
                   />
                 </LocalizationProvider>
